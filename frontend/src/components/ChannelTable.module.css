@@ -1,0 +1,73 @@
+.tableWrap {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow-x: auto;
+    box-shadow: var(--shadow-inset);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.row {
+    transition: background var(--transition-fast);
+}
+
+.channelCell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.channelName {
+    font-weight: 600;
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 0.8125rem;
+    transition: color var(--transition-fast);
+}
+
+.channelName:hover {
+    color: var(--brand-light);
+}
+
+.number {
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    font-size: 0.8125rem;
+}
+
+.email {
+    font-size: 0.75rem;
+    color: var(--accent-cyan);
+    word-break: break-all;
+    opacity: 0.85;
+}
+
+.date {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.checkbox {
+    accent-color: var(--brand);
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+}
+
+.empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 20px;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+}
+
+.emptyIcon {
+    font-size: 2rem;
+    margin-bottom: 10px;
+    opacity: 0.3;
+}

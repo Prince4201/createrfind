@@ -1,0 +1,94 @@
+.card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-normal);
+    animation: fadeIn 0.4s ease forwards;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow-inset);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--gradient-surface);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--transition-normal);
+}
+
+.card:hover {
+    border-color: var(--border-active);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.card:hover::after {
+    opacity: 1;
+}
+
+.iconWrap {
+    width: 42px;
+    height: 42px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.iconWrap.brand {
+    background: var(--gradient-brand);
+}
+
+.iconWrap.blue {
+    background: var(--gradient-blue);
+}
+
+.iconWrap.green {
+    background: var(--gradient-green);
+}
+
+.iconWrap.orange {
+    background: var(--gradient-orange);
+}
+
+.iconWrap.purple {
+    background: var(--gradient-purple);
+}
+
+.icon {
+    font-size: 1.1rem;
+    filter: saturate(0) brightness(10);
+}
+
+.content {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.label {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}

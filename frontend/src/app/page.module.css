@@ -1,0 +1,156 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+/* ── Background orbs ── */
+.bgOrb1,
+.bgOrb2,
+.bgOrb3 {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(140px);
+  opacity: 0.12;
+  pointer-events: none;
+}
+
+.bgOrb1 {
+  width: 500px;
+  height: 500px;
+  background: var(--brand);
+  top: -180px;
+  right: -120px;
+  animation: pulse-glow 8s ease-in-out infinite;
+}
+
+.bgOrb2 {
+  width: 400px;
+  height: 400px;
+  background: #38BDF8;
+  bottom: -120px;
+  left: -100px;
+  animation: float 10s ease-in-out infinite;
+}
+
+.bgOrb3 {
+  width: 300px;
+  height: 300px;
+  background: var(--accent-purple);
+  top: 40%;
+  left: 50%;
+  animation: float 12s ease-in-out infinite reverse;
+}
+
+/* ── Card ── */
+.card {
+  width: 100%;
+  max-width: 400px;
+  padding: 36px 32px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  animation: fadeIn 0.5s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.logoWrap {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.logo {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 12px;
+  background: var(--gradient-brand);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  color: white;
+  box-shadow: var(--shadow-brand);
+}
+
+.brand {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+}
+
+.tagline {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.submitBtn {
+  width: 100%;
+  padding: 10px;
+  font-size: 0.8125rem;
+  margin-top: 4px;
+}
+
+.error {
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 107, 122, 0.08);
+  border: 1px solid rgba(255, 107, 122, 0.15);
+  color: var(--accent-red);
+  font-size: 0.75rem;
+}
+
+.toggle {
+  text-align: center;
+  margin-top: 16px;
+}
+
+.toggleText {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.toggleBtn {
+  font-size: 0.75rem;
+  color: var(--brand-light);
+  font-weight: 600;
+  margin-left: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.toggleBtn:hover {
+  color: var(--brand);
+}
