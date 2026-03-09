@@ -22,46 +22,56 @@ import FilterEngine from './services/filterEngine.js';
 import EmailService from './services/emailService.js';
 import SheetsService from './services/sheetsService.js';
 
-const app = express();
-const PORT = process.env.PORT || 8080;
+// ─── App factory ─────────────────────────────────────────────────────────────
+// getApp() initialises all services and returns the configured Express app.
+// It is called by the Vercel entry point (api/index.js) and by start() below.
+// We cache the promise so that Vercel's warm-lambda reuse doesn't re-init.
+// ─────────────────────────────────────────────────────────────────────────────
+let _appPromise = null;
 
-// ------- Security -------
-app.use(helmet());
-app.use(
-    cors({
-        origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-        credentials: true,
-    })
-);
-app.use(express.json({ limit: '1mb' }));
-app.use(generalLimiter);
+export async function getApp() {
+    if (_appPromise) return _appPromise;
 
-// ------- Health check (no auth) -------
-app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+    _appPromise = (async () => {
+        const app = express();
 
-// ------- Public routes -------
-app.use('/api/auth', authRoutes);
+        // ------- Security -------
+        app.use(helmet());
+        app.use(
+            cors({
+                origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+                credentials: true,
+            })
+        );
+        app.use(express.json({ limit: '1mb' }));
+        app.use(generalLimiter);
 
-// ------- Protected routes -------
-app.use('/api/channels', authMiddleware, channelRoutes);
-app.use('/api/campaigns', authMiddleware, campaignRoutes);
-app.use('/api/emails', authMiddleware, emailRoutes);
-app.use('/api/analytics', authMiddleware, analyticsRoutes);
-app.use('/api/sheets', authMiddleware, sheetRoutes);
-app.use('/api/settings', authMiddleware, settingsRoutes);
+        app.get("/", (req, res) => {
+            res.json({ message: "Hello World" })
+        })
+        // ------- Health check (no auth) -------
+        app.get('/health', (_req, res) => {
+            res.json({ status: 'ok', timestamp: new Date().toISOString() });
+        });
 
-// ------- Error handler -------
-app.use(errorHandler);
+        // ------- Public routes -------
+        app.use('/api/auth', authRoutes);
 
-// ------- Bootstrap services & start -------
-async function start() {
-    try {
+        // ------- Protected routes -------
+        app.use('/api/channels', authMiddleware, channelRoutes);
+        app.use('/api/campaigns', authMiddleware, campaignRoutes);
+        app.use('/api/emails', authMiddleware, emailRoutes);
+        app.use('/api/analytics', authMiddleware, analyticsRoutes);
+        app.use('/api/sheets', authMiddleware, sheetRoutes);
+        app.use('/api/settings', authMiddleware, settingsRoutes);
+
+        // ------- Error handler -------
+        app.use(errorHandler);
+
+        // ------- Bootstrap services -------
         logger.info('Loading secrets...');
         const secrets = await loadSecrets();
 
-        // Initialize services
         const youtubeService = new YouTubeService(secrets.youtubeApiKey);
 
         let sheetsService = null;
@@ -74,7 +84,6 @@ async function start() {
 
         const filterEngine = new FilterEngine(youtubeService, sheetsService);
 
-        // Initialize empty EmailService; it will load settings internally
         const emailService = new EmailService();
         await emailService.loadSMTPSettings();
 
@@ -84,15 +93,30 @@ async function start() {
         app.set('emailService', emailService);
         app.set('sheetsService', sheetsService);
 
+        logger.info('App ready', {
+            env: process.env.NODE_ENV,
+            services: {
+                youtube: !!secrets.youtubeApiKey,
+                sendgrid: !!secrets.sendgridApiKey,
+                sheets: !!sheetsService,
+            },
+        });
+
+        return app;
+    })();
+
+    return _appPromise;
+}
+
+// ─── Local dev entry ─────────────────────────────────────────────────────────
+// Only runs when executed directly (not imported by Vercel).
+// ─────────────────────────────────────────────────────────────────────────────
+async function start() {
+    try {
+        const app = await getApp();
+        const PORT = process.env.PORT || 8080;
         app.listen(PORT, () => {
-            logger.info(`Server running on port ${PORT}`, {
-                env: process.env.NODE_ENV,
-                services: {
-                    youtube: !!secrets.youtubeApiKey,
-                    sendgrid: !!secrets.sendgridApiKey,
-                    sheets: !!sheetsService,
-                },
-            });
+            logger.info(`Server running on port ${PORT}`);
         });
     } catch (error) {
         logger.error('Failed to start server', { error: error.message });
@@ -100,6 +124,8 @@ async function start() {
     }
 }
 
-start();
+// Run only when this file is the entry point (local dev)
+if (process.argv[1] && process.argv[1].endsWith('app.js')) {
+    start();
+}
 
-export default app;

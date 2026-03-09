@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "description": "YouTube Creator Discovery & Outreach Automation — Backend API",
   "type": "module",
-  "main": "src/app.js",
+  "main": "api/index.js",
   "scripts": {
+    "build": "echo Build complete",
     "start": "node --env-file=.env src/app.js",
     "dev": "node --env-file=.env --watch src/app.js",
     "demo": "node --env-file=.env --watch src/demo-server.js"
