@@ -2,43 +2,40 @@ import { google } from 'googleapis';
 import logger from '../config/logger.js';
 
 // ═══════════════════════════════════════════════════════════
-//  Google Sheets Service — Single Sheet, Multi-User Upsert
+//  Google Sheets Service — Sheet1, Multi-User Safe Upsert
 //
-//  All users share ONE "Channels" sheet tab.
-//  Every row has an "Owner Email" column.
+//  Uses Sheet1 (the default existing tab).
+//  All users share one sheet. Each row has an "Owner Email"
+//  column (K). On sync:
 //
-//  On sync for User X:
-//   1. Read all existing rows from the sheet
-//   2. Find rows where Owner Email == User X's email
-//   3. Upsert by Channel ID:
-//      - Update existing rows for User X in-place
-//      - Append brand-new channels at the bottom
-//      - NEVER touch rows belonging to other users
+//   1. Ensure header has "Owner Email" in column K
+//   2. Read all rows from Sheet1
+//   3. For THIS user only (matched by Owner Email):
+//      - If Channel ID already exists → update that row
+//      - If new channel → append at bottom
+//   4. Never touch rows belonging to other users
 // ═══════════════════════════════════════════════════════════
 
-const SHEET_TAB = 'Channels';
+const SHEET_TAB = 'Sheet1';
 
 const HEADER_ROW = [
-    'Channel Name',      // A
-    'Channel ID',        // B  ← upsert key
-    'Channel URL',       // C
-    'Subscribers',       // D
-    'Avg Views',         // E
-    'Category',          // F
-    'Email',             // G
-    'Description',       // H
-    'Date Scraped',      // I
-    'Email Sent',        // J
-    'Owner Email',       // K  ← user identifier
+    'Channel Name',       // A col 0
+    'Channel ID',         // B col 1  ← upsert key
+    'Channel URL',        // C col 2
+    'Subscribers',        // D col 3
+    'Avg Views',          // E col 4
+    'Category',           // F col 5
+    'Email',              // G col 6
+    'Description',        // H col 7
+    'Date Scraped',       // I col 8
+    'Email Sent',         // J col 9
+    'Owner Email',        // K col 10 ← user identifier
 ];
 
-// 0-based column indices
-const COL_CHANNEL_ID = 1;   // B
-const COL_OWNER_EMAIL = 10; // K
-
-const MAX_DESCRIPTION_LENGTH = 500;
-const RETRY_DELAY_MS = 2000;
-const TOTAL_COLS = 11; // A–K
+const COL_CHANNEL_ID  = 1;   // B
+const COL_OWNER_EMAIL = 10;  // K
+const MAX_DESC_LEN    = 500;
+const RETRY_DELAY_MS  = 2000;
 
 class SheetsService {
     constructor(credentials, spreadsheetId) {
@@ -63,12 +60,12 @@ class SheetsService {
                 scopes: ['https://www.googleapis.com/auth/spreadsheets'],
             });
             this.sheets = google.sheets({ version: 'v4', auth });
-            logger.info('Google Sheets service initialized', {
+            logger.info('Sheets: initialized', {
                 spreadsheetId: this.spreadsheetId,
                 account: creds.client_email,
             });
         } catch (err) {
-            logger.error('Sheets init failed', { error: err.message });
+            logger.error('Sheets: init failed', { error: err.message });
             this.sheets = null;
         }
     }
@@ -76,16 +73,13 @@ class SheetsService {
     // ── Primary API ──────────────────────────────────────────
 
     /**
-     * Sync channels for a specific user.
-     * Only touches rows owned by that user — never deletes other users' data.
-     *
-     * @param {Array<object>} channels
-     * @param {string} userEmail
-     * @returns {Promise<{synced, added, updated}>}
+     * Sync channels for a specific user into Sheet1.
+     * Only updates/appends rows owned by this user.
+     * Never modifies other users' rows.
      */
     async syncUserChannels(channels, userEmail) {
         if (!this.sheets) {
-            logger.warn('Sheets: not configured — skipping');
+            logger.warn('Sheets: not configured');
             return { synced: 0, added: 0, updated: 0 };
         }
         if (!channels?.length) {
@@ -94,118 +88,113 @@ class SheetsService {
         }
 
         const email = (userEmail || 'unknown').toLowerCase().trim();
-        logger.info(`Sheets: syncing ${channels.length} channels for ${email}`);
+        logger.info(`Sheets: starting sync for ${email}, ${channels.length} channels`);
 
-        // 1. Ensure the "Channels" tab + header exist
-        await this._ensureTab();
+        // 1. Ensure header row has all columns including Owner Email
+        await this._ensureHeader();
 
-        // 2. Read all existing data rows
-        const allRows = await this._readAllRows(); // [[...], [...], ...] — no header
+        // 2. Read ALL existing data rows (row 2 onwards)
+        const allRows = await this._readAllDataRows();
+        // allRows[i] maps to sheet row (i + 2)  [row 1 = header]
 
-        // 3. Build a map: channelId → { rowIndex (1-based sheet row), ownerEmail }
-        //    Row 1 = header, so data starts at sheet row 2 → allRows[0] = sheet row 2
-        const channelMap = new Map(); // channelId → sheet row number (1-based)
+        // 3. Build map of channelId → sheetRowNumber for THIS user's rows only
+        const userChannelRowMap = new Map(); // channelId → 1-based sheet row
         for (let i = 0; i < allRows.length; i++) {
-            const row = allRows[i];
-            const channelId = row[COL_CHANNEL_ID];
-            const owner = (row[COL_OWNER_EMAIL] || '').toLowerCase().trim();
-            if (channelId && owner === email) {
-                channelMap.set(channelId, i + 2); // +2: 1-based + skip header row
+            const row        = allRows[i];
+            const channelId  = (row[COL_CHANNEL_ID]  || '').trim();
+            const rowOwner   = (row[COL_OWNER_EMAIL] || '').toLowerCase().trim();
+            const sheetRow   = i + 2; // +2 because row 1 = header
+
+            if (channelId && rowOwner === email) {
+                userChannelRowMap.set(channelId, sheetRow);
             }
         }
 
-        // 4. Classify: update existing vs append new
-        const toUpdate = [];
-        const toAppend = [];
+        logger.info(`Sheets: found ${userChannelRowMap.size} existing rows for ${email}`);
+
+        // 4. Classify channels into updates vs appends
+        const toUpdate = []; // { sheetRow, row }
+        const toAppend = []; // row arrays
 
         for (const ch of channels) {
-            const channelId = ch.channelId || ch.id || '';
+            const channelId = (ch.channelId || ch.id || '').trim();
             const row = this._toRow(ch, email);
-            if (channelId && channelMap.has(channelId)) {
-                toUpdate.push({ sheetRow: channelMap.get(channelId), row });
+
+            if (channelId && userChannelRowMap.has(channelId)) {
+                toUpdate.push({ sheetRow: userChannelRowMap.get(channelId), row });
             } else {
                 toAppend.push(row);
             }
         }
 
-        // 5. Update existing rows in-place
+        logger.info(`Sheets: ${toUpdate.length} to update, ${toAppend.length} to append`);
+
+        // 5. Batch-update existing rows for this user
         if (toUpdate.length > 0) {
             await this._batchUpdate(toUpdate);
         }
 
-        // 6. Append new rows
+        // 6. Append new rows at the bottom
         if (toAppend.length > 0) {
             await this._appendWithRetry(toAppend);
         }
 
-        logger.info('Sheets: sync complete', {
-            user: email,
+        logger.info(`Sheets: sync complete for ${email}`, {
             updated: toUpdate.length,
             added: toAppend.length,
         });
 
         return {
-            synced: toUpdate.length + toAppend.length,
+            synced:  toUpdate.length + toAppend.length,
             updated: toUpdate.length,
-            added: toAppend.length,
+            added:   toAppend.length,
         };
     }
 
     // ── Backward-compatible aliases ──────────────────────────
 
     async appendChannels(channels, userEmail = null) {
-        if (userEmail) return this.syncUserChannels(channels, userEmail);
-        return this.syncUserChannels(channels, 'unknown');
+        return this.syncUserChannels(channels, userEmail || 'unknown');
     }
 
     async appendChannelsToSheet(channels, userEmail = null) {
         return this.appendChannels(channels, userEmail);
     }
 
-    // ── Tab + Header Management ──────────────────────────────
+    // ── Header Management ────────────────────────────────────
 
-    async _ensureTab() {
+    /**
+     * Ensure Sheet1 exists and has the correct header row.
+     * Migrates old headers (≤10 cols) to include Owner Email in col K.
+     */
+    async _ensureHeader() {
         try {
-            const meta = await this.sheets.spreadsheets.get({
-                spreadsheetId: this.spreadsheetId,
-            });
-            const tabs = meta.data.sheets.map(s => s.properties.title);
-
-            if (!tabs.includes(SHEET_TAB)) {
-                // Create the tab
-                await this.sheets.spreadsheets.batchUpdate({
-                    spreadsheetId: this.spreadsheetId,
-                    requestBody: {
-                        requests: [{ addSheet: { properties: { title: SHEET_TAB } } }],
-                    },
-                });
-                logger.info(`Sheets: created tab "${SHEET_TAB}"`);
-            }
-
-            // Always ensure header row is correct
-            const headerCheck = await this.sheets.spreadsheets.values.get({
+            const res = await this.sheets.spreadsheets.values.get({
                 spreadsheetId: this.spreadsheetId,
                 range: `${SHEET_TAB}!A1:K1`,
             });
 
-            if (!headerCheck.data.values?.length) {
+            const currentHeader = res.data.values?.[0] || [];
+
+            // If header is missing or doesn't have Owner Email yet → write full header
+            if (!currentHeader.length || !currentHeader[COL_OWNER_EMAIL]) {
                 await this.sheets.spreadsheets.values.update({
                     spreadsheetId: this.spreadsheetId,
                     range: `${SHEET_TAB}!A1:K1`,
                     valueInputOption: 'RAW',
                     requestBody: { values: [HEADER_ROW] },
                 });
-                logger.info('Sheets: header row written');
+                logger.info('Sheets: header row written/updated');
             }
         } catch (err) {
-            this._classifyAndThrow(err, 'ensuring tab');
+            this._classifyAndThrow(err, 'ensuring header');
         }
     }
 
     // ── Read / Write Helpers ─────────────────────────────────
 
-    /** Read all DATA rows (no header). Returns 2D array. */
-    async _readAllRows() {
+    /** Read all data rows from Sheet1 (skipping header row 1). */
+    async _readAllDataRows() {
         try {
             const res = await this.sheets.spreadsheets.values.get({
                 spreadsheetId: this.spreadsheetId,
@@ -218,7 +207,7 @@ class SheetsService {
         }
     }
 
-    /** Batch-update specific rows using a single batchUpdate call. */
+    /** Update specific rows using a single batchUpdate API call. */
     async _batchUpdate(updates) {
         const data = updates.map(({ sheetRow, row }) => ({
             range: `${SHEET_TAB}!A${sheetRow}:K${sheetRow}`,
@@ -228,18 +217,14 @@ class SheetsService {
         try {
             await this.sheets.spreadsheets.values.batchUpdate({
                 spreadsheetId: this.spreadsheetId,
-                requestBody: {
-                    valueInputOption: 'RAW',
-                    data,
-                },
+                requestBody: { valueInputOption: 'RAW', data },
             });
         } catch (err) {
             logger.error('Sheets: batchUpdate failed', { error: err.message });
-            // Non-fatal — still attempt to append new rows
         }
     }
 
-    /** Append rows at the bottom of the Channels tab. Retries once on transient errors. */
+    /** Append rows at the bottom. Retries once on transient errors. */
     async _appendWithRetry(rows) {
         const params = {
             spreadsheetId: this.spreadsheetId,
@@ -248,7 +233,6 @@ class SheetsService {
             insertDataOption: 'INSERT_ROWS',
             requestBody: { values: rows },
         };
-
         try {
             await this.sheets.spreadsheets.values.append(params);
         } catch (err) {
@@ -274,7 +258,7 @@ class SheetsService {
             ch.avgViews ?? 0,
             ch.category || ch.niche || '',
             ch.email || '',
-            (ch.description || '').substring(0, MAX_DESCRIPTION_LENGTH),
+            (ch.description || '').substring(0, MAX_DESC_LEN),
             ch.scrapedAt instanceof Date
                 ? ch.scrapedAt.toISOString()
                 : ch.scrapedAt || new Date().toISOString(),
@@ -283,20 +267,23 @@ class SheetsService {
         ];
     }
 
-    // ── Row Count (for status endpoint) ─────────────────────
+    // ── Row Count ────────────────────────────────────────────
 
+    /**
+     * Count rows for a specific user (or all rows if no email given).
+     */
     async getRowCount(userEmail = null) {
         if (!this.sheets) return 0;
         try {
-            const res = await this.sheets.spreadsheets.values.get({
-                spreadsheetId: this.spreadsheetId,
-                range: `${SHEET_TAB}!A:A`,
-            });
-            const allRows = res.data.values || [];
-            if (!userEmail) return Math.max(allRows.length - 1, 0);
+            if (!userEmail) {
+                const res = await this.sheets.spreadsheets.values.get({
+                    spreadsheetId: this.spreadsheetId,
+                    range: `${SHEET_TAB}!A:A`,
+                });
+                return Math.max((res.data.values?.length || 1) - 1, 0);
+            }
 
-            // Count only rows belonging to this user
-            const rows = await this._readAllRows();
+            const rows  = await this._readAllDataRows();
             const email = userEmail.toLowerCase().trim();
             return rows.filter(r =>
                 (r[COL_OWNER_EMAIL] || '').toLowerCase().trim() === email
@@ -310,23 +297,23 @@ class SheetsService {
     // ── Error Handling ───────────────────────────────────────
 
     _classifyAndLogError(err, ctx) {
-        const status = err?.response?.status || err?.code;
-        if (status === 404) logger.error(`Sheets [${ctx}]: spreadsheet not found`);
-        else if (status === 403) logger.error(`Sheets [${ctx}]: permission denied — give service account Editor access`);
-        else if (status === 429) logger.warn(`Sheets [${ctx}]: rate limit hit`);
-        else logger.error(`Sheets [${ctx}]: ${err.message}`, { status });
+        const s = err?.response?.status || err?.code;
+        if (s === 404) logger.error(`Sheets [${ctx}]: spreadsheet not found — check GOOGLE_SHEET_ID`);
+        else if (s === 403) logger.error(`Sheets [${ctx}]: permission denied — give service account Editor access`);
+        else if (s === 429) logger.warn(`Sheets [${ctx}]: rate limit hit`);
+        else logger.error(`Sheets [${ctx}]: ${err.message}`, { status: s });
     }
 
     _classifyAndThrow(err, ctx) {
         this._classifyAndLogError(err, ctx);
-        const status = err?.response?.status || err?.code;
+        const s = err?.response?.status || err?.code;
         const msg =
-            status === 404 ? `Invalid spreadsheet ID: ${this.spreadsheetId}` :
-            status === 403 ? 'Service account needs Editor access to the spreadsheet' :
-            status === 429 ? 'Rate limit exceeded — try again later' :
+            s === 404 ? `Invalid spreadsheet ID: ${this.spreadsheetId}` :
+            s === 403 ? 'Service account needs Editor access to the spreadsheet' :
+            s === 429 ? 'Rate limit exceeded — try again later' :
             `Sheets API error: ${err.message}`;
         const wrapped = new Error(msg);
-        wrapped.statusCode = status === 429 ? 429 : status || 500;
+        wrapped.statusCode = s === 429 ? 429 : s || 500;
         throw wrapped;
     }
 }
