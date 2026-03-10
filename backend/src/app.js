@@ -1,5 +1,6 @@
 import express from 'express';
 import helmet from 'helmet';
+import cors from 'cors';
 import logger from './config/logger.js';
 import { loadSecrets } from './config/secrets.js';
 import authMiddleware from './middleware/auth.js';
@@ -36,6 +37,7 @@ export async function getApp() {
 
         // ------- Security -------
         app.use(helmet());
+        app.use(cors()); // Allow all origins
         app.use(express.json({ limit: '1mb' }));
         app.use(generalLimiter);
 
