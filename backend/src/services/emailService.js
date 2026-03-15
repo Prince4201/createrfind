@@ -4,44 +4,44 @@ const { FieldValue } = admin.firestore;
 import logger from '../config/logger.js';
 
 class EmailService {
-    constructor() {
-        this.transporter = null;
-        this.settings = null;
-    }
+    constructor() {}
 
     /**
-     * Load SMTP configuration from Firestore.
+     * Load SMTP configuration from userSettings or fallback to systemSettings.
      */
-    async loadSMTPSettings() {
+    async getSMTPSettings(userId) {
         try {
+            if (userId) {
+                const userDoc = await db.collection('userSettings').doc(userId).get();
+                if (userDoc.exists && userDoc.data().smtp) {
+                    return userDoc.data().smtp;
+                }
+            }
             const doc = await db.collection('systemSettings').doc('smtp').get();
             if (doc.exists) {
-                this.settings = doc.data();
-                this._createTransporter();
-                logger.info('SMTP settings loaded successfully');
-                return true;
+                return doc.data();
             }
             logger.warn('No SMTP settings found in Firestore.');
-            return false;
+            return null;
         } catch (error) {
             logger.error('Failed to load SMTP settings', { error: error.message });
-            return false;
+            return null;
         }
     }
 
     /**
      * Use Nodemailer to create an SMTP transporter.
      */
-    _createTransporter() {
-        if (!this.settings || !this.settings.smtpHost) return;
+    _createTransporter(settings) {
+        if (!settings || !settings.smtpHost) return null;
 
-        this.transporter = nodemailer.createTransport({
-            host: this.settings.smtpHost,
-            port: this.settings.smtpPort,
-            secure: this.settings.smtpPort === 465, // true for 465, false for other ports
+        return nodemailer.createTransport({
+            host: settings.smtpHost,
+            port: settings.smtpPort,
+            secure: settings.smtpPort === 465, // true for 465, false for other ports
             auth: {
-                user: this.settings.smtpUser,
-                pass: this.settings.smtpPassword,
+                user: settings.smtpUser,
+                pass: settings.smtpPassword,
             },
         });
     }
@@ -56,11 +56,14 @@ class EmailService {
      * @returns {{ sent: number, failed: number }}
      */
     async sendBulk(campaign, channels) {
-        if (!this.transporter) {
-            const loaded = await this.loadSMTPSettings();
-            if (!loaded || !this.transporter) {
-                throw new Error('SMTP transporter is not configured. Please set it in the Email Settings.');
-            }
+        const settings = await this.getSMTPSettings(campaign.userId);
+        if (!settings) {
+            throw new Error('SMTP settings are not configured. Please set them in Email Settings.');
+        }
+
+        const transporter = this._createTransporter(settings);
+        if (!transporter) {
+            throw new Error('Invalid SMTP configuration. Please check your Email Settings.');
         }
 
         const { id: campaignId, subject, bodyTemplate } = campaign;
@@ -81,8 +84,8 @@ class EmailService {
                 const personalizedSubject = this._personalize(subject, channel);
                 const personalizedBody = this._personalize(bodyTemplate, channel);
 
-                await this.transporter.sendMail({
-                    from: `"${this.settings.senderEmail}" <${this.settings.senderEmail}>`,
+                await transporter.sendMail({
+                    from: `"${settings.senderEmail}" <${settings.senderEmail}>`,
                     to: channel.email,
                     subject: personalizedSubject,
                     html: personalizedBody,

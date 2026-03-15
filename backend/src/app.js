@@ -80,7 +80,6 @@ export async function getApp() {
         const filterEngine = new FilterEngine(youtubeService, sheetsService);
 
         const emailService = new EmailService();
-        await emailService.loadSMTPSettings();
 
         // Attach services to app for route access
         app.set('youtubeService', youtubeService);

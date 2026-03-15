@@ -11,12 +11,23 @@ const router = Router();
  */
 router.get('/smtp', async (req, res, next) => {
     try {
-        const doc = await db.collection('systemSettings').doc('smtp').get();
-        if (!doc.exists) {
+        const userId = req.user.uid;
+        let data = null;
+
+        const userDoc = await db.collection('userSettings').doc(userId).get();
+        if (userDoc.exists && userDoc.data().smtp) {
+            data = userDoc.data().smtp;
+        } else {
+            const systemDoc = await db.collection('systemSettings').doc('smtp').get();
+            if (systemDoc.exists) {
+                data = systemDoc.data();
+            }
+        }
+
+        if (!data) {
             return res.json({ data: null });
         }
         
-        const data = doc.data();
         // Omit password from response
         delete data.smtpPassword;
         
@@ -32,6 +43,7 @@ router.get('/smtp', async (req, res, next) => {
  */
 router.post('/smtp', async (req, res, next) => {
     try {
+        const userId = req.user.uid;
         const { senderEmail, smtpHost, smtpPort, smtpUser, smtpPassword } = req.body;
         
         const updateData = {
@@ -42,29 +54,27 @@ router.post('/smtp', async (req, res, next) => {
             updatedAt: FieldValue.serverTimestamp(),
         };
 
-        // Only update password if provided
+        // If there's no password provided, try to retain the old one
         if (smtpPassword) {
             updateData.smtpPassword = smtpPassword;
+        } else {
+            // Fetch existing settings to preserve password
+            const userDoc = await db.collection('userSettings').doc(userId).get();
+            if (userDoc.exists && userDoc.data().smtp && userDoc.data().smtp.smtpPassword) {
+                updateData.smtpPassword = userDoc.data().smtp.smtpPassword;
+            } else {
+                const systemDoc = await db.collection('systemSettings').doc('smtp').get();
+                if (systemDoc.exists && systemDoc.data().smtpPassword) {
+                     updateData.smtpPassword = systemDoc.data().smtpPassword;
+                }
+            }
         }
 
-        const docRef = db.collection('systemSettings').doc('smtp');
+        const docRef = db.collection('userSettings').doc(userId);
         
-        // Use set with merge to create if not exists
-        await docRef.set(updateData, { merge: true });
-        
-        // If this is the first creation, set createdAt
-        const doc = await docRef.get();
-        if (!doc.data().createdAt) {
-            await docRef.update({ createdAt: FieldValue.serverTimestamp() });
-        }
+        await docRef.set({ smtp: updateData }, { merge: true });
 
-        logger.info('SMTP settings updated', { userId: req.user.uid });
-
-        // Reload the email service if it exists (we'll implement loadSMTPSettings later)
-        const emailService = req.app.get('emailService');
-        if (emailService && typeof emailService.loadSMTPSettings === 'function') {
-            await emailService.loadSMTPSettings();
-        }
+        logger.info('SMTP settings updated for user', { userId });
 
         res.json({ success: true, message: 'SMTP settings saved successfully' });
     } catch (error) {
