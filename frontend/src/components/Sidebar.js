@@ -11,6 +11,7 @@ const nav = [
     { href: '/dashboard/emails', label: 'Email History', icon: '📬' },
     { href: '/dashboard/sheets', label: 'Sheet Sync', icon: '📄' },
     { href: '/dashboard/settings', label: 'Email Settings', icon: '⚙️' },
+    { href: '/dashboard/admin', label: 'Admin', icon: '🛡️' },
 ];
 
 export default function Sidebar() {
@@ -44,7 +45,7 @@ export default function Sidebar() {
             </nav>
 
             <div className={styles.footer}>
-                <div className={styles.version}>v1.0.0</div>
+                <div className={styles.version}>v2.0.0</div>
             </div>
         </aside>
     );

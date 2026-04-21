@@ -1,6 +1,6 @@
 import logger from '../config/logger.js';
-import { db, admin } from '../config/firestore.js';
-const { FieldValue } = admin.firestore;
+import { supabase } from '../config/supabase.js';
+
 class FilterEngine {
     constructor(youtubeService, sheetsService) {
         this.yt = youtubeService;
@@ -13,7 +13,7 @@ class FilterEngine {
      *  2. For each channel, fetch details + avg views
      *  3. Apply filters sequentially
      *  4. Stop when target count reached
-     *  5. Save to Firestore + Google Sheet
+     *  5. Save to Supabase + Google Sheet
      */
     async discover(filters, userId) {
         const {
@@ -26,7 +26,6 @@ class FilterEngine {
 
         const validChannels = [];
         let pageToken = null;
-        let processedCount = 0;
         const seenIds = new Set();
         const target = Math.min(maxChannels, 50);
 
@@ -36,7 +35,7 @@ class FilterEngine {
         const pLimit = (await import('p-limit')).default;
         const limit = pLimit(5); // Process 5 channels concurrently
 
-        outer: while (validChannels.length < target) {
+        while (validChannels.length < target) {
             // 1. Search for channels
             const searchResult = await this.yt.searchChannels(keyword, pageToken);
             pageToken = searchResult.nextPageToken;
@@ -53,25 +52,17 @@ class FilterEngine {
                 return true;
             });
 
-            // Deduplicate against Firestore database to avoid fetching existing channels
+            // Deduplicate against Supabase database
             const channelsToProcess = [];
             if (newChannels.length > 0) {
-                // Fetch existing by chunk of 30 if needed, but in this case max 50
                 const channelIds = newChannels.map((c) => c.channelId);
-                
-                // Firestore 'in' query supports up to 30 items, but empty array throws an error.
-                // We also use chunk of 10 to be ultra-safe.
-                const existingIds = new Set();
-                const { FieldPath } = admin.firestore;
-                for (let i = 0; i < channelIds.length; i += 10) {
-                    const chunk = channelIds.slice(i, i + 10);
-                    if (chunk.length > 0) {
-                        const snapshot = await db.collection('channels')
-                            .where(FieldPath.documentId(), 'in', chunk)
-                            .get();
-                        snapshot.forEach(doc => existingIds.add(doc.id));
-                    }
-                }
+
+                const { data: existing } = await supabase
+                    .from('channels')
+                    .select('channel_id')
+                    .in('channel_id', channelIds);
+
+                const existingIds = new Set((existing || []).map(e => e.channel_id));
 
                 for (const ch of newChannels) {
                     if (!existingIds.has(ch.channelId)) {
@@ -95,54 +86,35 @@ class FilterEngine {
 
                         // Filter 1: Subscriber range
                         if (channel.subscribers < minSubscribers || channel.subscribers > maxSubscribers) {
-                            logger.debug(`Filtered out (subs): ${channel.channelName}`, {
-                                subscribers: channel.subscribers,
-                            });
                             return null;
                         }
 
                         // Filter 2: Average views
                         const avgViews = await this.yt.calculateAvgViews(ch.channelId);
-                        if (avgViews < minAvgViews) {
-                            logger.debug(`Filtered out (views): ${channel.channelName}`, { avgViews });
-                            return null;
-                        }
+                        if (avgViews < minAvgViews) return null;
 
                         // Filter 3: Keyword relevance
                         const keywordLower = keyword.toLowerCase();
                         const nameMatch = channel.channelName.toLowerCase().includes(keywordLower);
                         const descMatch = channel.description.toLowerCase().includes(keywordLower);
-                        if (!nameMatch && !descMatch) {
-                            logger.debug(`Filtered out (keyword): ${channel.channelName}`);
-                            return null;
-                        }
+                        if (!nameMatch && !descMatch) return null;
 
                         // Filter 4: Email present
                         const email = this.yt.extractEmail(channel.description);
-                        if (!email) {
-                            logger.debug(`Filtered out (no email): ${channel.channelName}`);
-                            return null;
-                        }
+                        if (!email) return null;
 
                         return {
-                            channelId: channel.channelId,
-                            channelName: channel.channelName,
-                            channelUrl: channel.channelUrl,
-                            thumbnailUrl: channel.thumbnail || '',
-                            subscribers: channel.subscribers,
-                            totalViews: 0,
-                            videoCount: channel.videoCount || 0,
-                            avgViews,
+                            channel_id: channel.channelId,
+                            name: channel.channelName,
+                            channel_url: channel.channelUrl,
                             description: channel.description,
+                            subscribers: channel.subscribers,
+                            avg_views: avgViews,
                             category: channel.category,
-                            country: 'Unknown',
                             email,
-                            scrapedAt: new Date(),
-                            emailSent: false,
-                            emailSentDate: null,
-                            sheetSynced: false,
-                            createdByUserId: userId,
-                            userId,
+                            niche: keyword,
+                            fetched_by_user_id: userId,
+                            last_fetched_at: new Date().toISOString(),
                         };
                     } catch (error) {
                         logger.error(`Error processing channel ${ch.channelId}`, {
@@ -157,7 +129,6 @@ class FilterEngine {
             for (const result of results) {
                 if (result && validChannels.length < target) {
                     validChannels.push(result);
-                    processedCount++;
                 }
             }
 
@@ -171,22 +142,27 @@ class FilterEngine {
             }
         }
 
-        // 3. Save to Firestore (batch write)
+        // 3. Save to Supabase
         if (validChannels.length > 0) {
-            await this._saveToFirestore(validChannels, userId);
+            await this._saveToSupabase(validChannels, userId);
 
             // 4. Append to Google Sheet
             if (this.sheets) {
                 try {
-                    await this.sheets.appendChannels(validChannels);
-                    // Mark as synced
-                    const updateBatch = db.batch();
-                    for (const ch of validChannels) {
-                        const docRef = db.collection('channels').doc(ch.channelId);
-                        updateBatch.update(docRef, { sheetSynced: true });
-                    }
-                    await updateBatch.commit();
-                    logger.info(`Appended ${validChannels.length} channels to Google Sheet and marked as synced`);
+                    // Map to the format sheetsService expects
+                    const mapped = validChannels.map(ch => ({
+                        channelId: ch.channel_id,
+                        channelName: ch.name,
+                        channelUrl: ch.channel_url,
+                        subscribers: ch.subscribers,
+                        avgViews: ch.avg_views,
+                        email: ch.email,
+                        description: ch.description,
+                        category: ch.category,
+                        scrapedAt: new Date(),
+                    }));
+                    await this.sheets.appendChannels(mapped);
+                    logger.info(`Appended ${validChannels.length} channels to Google Sheet`);
                 } catch (err) {
                     logger.error('Failed to append to Google Sheet', { error: err.message });
                 }
@@ -206,40 +182,29 @@ class FilterEngine {
         };
     }
 
-    async _saveToFirestore(channels, userId) {
-        const batch = db.batch();
+    async _saveToSupabase(channels, userId) {
+        // Upsert channels
+        const { error } = await supabase
+            .from('channels')
+            .upsert(channels, { onConflict: 'channel_id' });
 
-        for (const ch of channels) {
-            // Use channelId as doc ID to prevent duplicates
-            const docRef = db.collection('channels').doc(ch.channelId);
-            batch.set(docRef, ch, { merge: true });
+        if (error) {
+            logger.error('Failed to save channels to Supabase', { error: error.message });
+            throw error;
         }
 
-        // Update global analytics
-        const analyticsRef = db.collection('analytics').doc('global');
-        batch.set(
-            analyticsRef,
-            {
-                totalChannels: FieldValue.increment(channels.length),
-                lastDiscoveryAt: FieldValue.serverTimestamp(),
-            },
-            { merge: true }
-        );
+        // Log search activity to search_history
+        await supabase
+            .from('search_history')
+            .insert({
+                user_id: userId,
+                query: channels[0]?.niche || 'discovery',
+                niche: channels[0]?.niche,
+                returned_count: channels.length,
+                refresh_status: 'completed',
+            });
 
-        // Log activity
-        const logRef = db.collection('activityLogs').doc();
-        batch.set(logRef, {
-            action: 'discovery',
-            userId,
-            metadata: {
-                channelsFound: channels.length,
-                channelIds: channels.map((c) => c.channelId),
-            },
-            timestamp: FieldValue.serverTimestamp(),
-        });
-
-        await batch.commit();
-        logger.info(`Saved ${channels.length} channels to Firestore`);
+        logger.info(`Saved ${channels.length} channels to Supabase`);
     }
 }
 

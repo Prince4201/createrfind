@@ -1,14 +1,15 @@
 import { Router } from 'express';
-import { db } from '../config/firestore.js';
+import { supabase } from '../config/supabase.js';
 import logger from '../config/logger.js';
 import { triggerLimiter } from '../middleware/rateLimiter.js';
 import { validateDiscoverFilters, validatePagination } from '../middleware/validator.js';
+import HybridFetchService from '../services/hybridFetchService.js';
 
 const router = Router();
 
 /**
  * POST /api/channels/discover
- * Trigger the YouTube discovery pipeline.
+ * Trigger the hybrid discovery pipeline: DB-first + background YouTube API fetch.
  * Rate-limited to 10 requests per minute.
  */
 router.post('/discover', triggerLimiter, validateDiscoverFilters, async (req, res, next) => {
@@ -21,15 +22,64 @@ router.post('/discover', triggerLimiter, validateDiscoverFilters, async (req, re
             maxChannels: Math.min(parseInt(req.body.maxChannels), 50),
         };
 
-        logger.info('Discovery triggered', { filters, userId: req.user.uid });
+        logger.info('Discovery triggered', { filters, userId: req.user.id });
 
-        // Access the filter engine from app context
-        const filterEngine = req.app.get('filterEngine');
-        const result = await filterEngine.discover(filters, req.user.uid);
+        // Use hybrid fetch: returns cached results immediately, queues background API fetch if needed
+        const result = await HybridFetchService.searchCreators(req.user.id, filters.keyword, {
+            minSubscribers: filters.minSubscribers,
+            requestedCount: filters.maxChannels,
+            niche: filters.keyword,
+        });
 
         res.json({
             success: true,
             data: result,
+        });
+    } catch (error) {
+        if (error.statusCode === 429) {
+            return res.status(429).json({ error: 'YouTube API quota exceeded. Try again tomorrow.' });
+        }
+        next(error);
+    }
+});
+
+/**
+ * GET /api/channels/discover/status/:searchHistoryId
+ * Poll for background fetch job status.
+ */
+router.get('/discover/status/:searchHistoryId', async (req, res, next) => {
+    try {
+        const { searchHistoryId } = req.params;
+
+        const { data, error } = await supabase
+            .from('search_history')
+            .select('*')
+            .eq('id', searchHistoryId)
+            .eq('user_id', req.user.id)
+            .single();
+
+        if (error || !data) {
+            return res.status(404).json({ error: 'Search not found' });
+        }
+
+        // If completed, also return the new channels
+        let channels = [];
+        // Assuming completed since refresh_status column doesn't exist
+        const { data: ch } = await supabase
+            .from('channels')
+            .select('*')
+            .eq('niche', data.query)
+            .order('subscribers', { ascending: false })
+            .limit(data.requested_count || 50);
+        channels = ch || [];
+
+        res.json({
+            data: {
+                status: data.refresh_status || 'completed',
+                returnedCount: data.returned_count,
+                cacheHitCount: data.cache_hit,
+                channels,
+            },
         });
     } catch (error) {
         next(error);
@@ -39,56 +89,45 @@ router.post('/discover', triggerLimiter, validateDiscoverFilters, async (req, re
 /**
  * GET /api/channels
  * List channels with pagination and optional filters.
+ * Channels are globally shared — all authenticated users can read.
  */
 router.get('/', validatePagination, async (req, res, next) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
+        const offset = (page - 1) * limit;
 
-        // Simple query — no orderBy to avoid composite index requirements
-        const snapshot = await db
-            .collection('channels')
-            .where('createdByUserId', '==', req.user.uid)
-            .get();
+        let query = supabase
+            .from('channels')
+            .select('*', { count: 'exact' });
 
-        let channels = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-            scrapedAt: doc.data().scrapedAt?.toDate?.() || doc.data().scrapedAt,
-            emailSentDate: doc.data().emailSentDate?.toDate?.() || doc.data().emailSentDate,
-        }));
-
-        // Apply filters in memory
-        if (req.query.emailSent !== undefined) {
-            const emailSentFilter = req.query.emailSent === 'true';
-            channels = channels.filter((ch) => ch.emailSent === emailSentFilter);
-        }
-
+        // Optional filters
         if (req.query.minSubscribers) {
-            const minSubs = parseInt(req.query.minSubscribers);
-            channels = channels.filter((ch) => (ch.subscribers || 0) >= minSubs);
+            query = query.gte('subscribers', parseInt(req.query.minSubscribers));
+        }
+        if (req.query.niche) {
+            query = query.eq('niche', req.query.niche);
+        }
+        if (req.query.hasEmail === 'true') {
+            query = query.not('email', 'is', null);
+        }
+        if (req.query.search) {
+            query = query.ilike('name', `%${req.query.search}%`);
         }
 
-        // Sort by scrapedAt descending in memory
-        channels.sort((a, b) => {
-            const ta = a.scrapedAt instanceof Date ? a.scrapedAt.getTime() : 0;
-            const tb = b.scrapedAt instanceof Date ? b.scrapedAt.getTime() : 0;
-            return tb - ta;
-        });
+        const { data: channels, count, error } = await query
+            .order('subscribers', { ascending: false })
+            .range(offset, offset + limit - 1);
 
-        const total = channels.length;
-
-        // Manual pagination
-        const start = (page - 1) * limit;
-        const paginated = channels.slice(start, start + limit);
+        if (error) throw error;
 
         res.json({
-            data: paginated,
+            data: channels,
             pagination: {
                 page,
                 limit,
-                total,
-                totalPages: Math.ceil(total / limit),
+                total: count || 0,
+                totalPages: Math.ceil((count || 0) / limit),
             },
         });
     } catch (error) {
@@ -98,15 +137,21 @@ router.get('/', validatePagination, async (req, res, next) => {
 
 /**
  * GET /api/channels/:id
- * Get a single channel by ID.
+ * Get a single channel by channel_id.
  */
 router.get('/:id', async (req, res, next) => {
     try {
-        const doc = await db.collection('channels').doc(req.params.id).get();
-        if (!doc.exists) {
+        const { data, error } = await supabase
+            .from('channels')
+            .select('*')
+            .eq('channel_id', req.params.id)
+            .single();
+
+        if (error || !data) {
             return res.status(404).json({ error: 'Channel not found' });
         }
-        res.json({ data: { id: doc.id, ...doc.data() } });
+
+        res.json({ data });
     } catch (error) {
         next(error);
     }

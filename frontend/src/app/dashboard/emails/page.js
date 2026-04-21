@@ -103,7 +103,7 @@ export default function EmailsPage() {
                     >
                         <option value="">Choose a campaign...</option>
                         {campaigns.map((c) => (
-                            <option key={c.id} value={c.id}>{c.campaignName}</option>
+                            <option key={c.id} value={c.id}>{c.campaign_name || c.campaignName}</option>
                         ))}
                     </select>
                 </div>
@@ -179,7 +179,7 @@ export default function EmailsPage() {
                                             style={{ accentColor: 'var(--brand)', width: 16, height: 16, flexShrink: 0 }}
                                         />
                                         <span style={{ color: 'var(--text-primary)', fontWeight: 500, minWidth: 160 }}>
-                                            {ch.channelName}
+                                            {ch.name || ch.channelName}
                                         </span>
                                         <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', flex: 1 }}>
                                             {ch.email}
@@ -249,6 +249,7 @@ export default function EmailsPage() {
                     <table className="data-table">
                         <thead>
                             <tr>
+                                <th>Campaign</th>
                                 <th>Channel ID</th>
                                 <th>Email Address</th>
                                 <th>Subject</th>
@@ -259,7 +260,10 @@ export default function EmailsPage() {
                         <tbody>
                             {history.map((h) => (
                                 <tr key={h.id}>
-                                    <td style={{ fontWeight: 500 }}>{h.channelId || '—'}</td>
+                                    <td style={{ fontWeight: 600, color: 'var(--brand)' }}>
+                                        {h.campaigns?.campaign_name || '—'}
+                                    </td>
+                                    <td style={{ fontWeight: 500 }}>{h.channel_id || h.channelId || '—'}</td>
                                     <td>{h.email || '—'}</td>
                                     <td style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.subject || '—'}</td>
                                     <td>
@@ -268,7 +272,7 @@ export default function EmailsPage() {
                                         </span>
                                     </td>
                                     <td style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                                        {h.sentAt ? new Date(h.sentAt).toLocaleString() : '—'}
+                                        {h.sent_at || h.sentAt ? new Date(h.sent_at || h.sentAt).toLocaleString() : '—'}
                                     </td>
                                 </tr>
                             ))}

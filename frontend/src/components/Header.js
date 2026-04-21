@@ -1,14 +1,14 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { createClient } from '@/utils/supabase/client';
 import styles from './Header.module.css';
 
 export default function Header({ title, user }) {
     const router = useRouter();
 
     const handleLogout = async () => {
-        await signOut(auth);
+        const supabase = createClient();
+        await supabase.auth.signOut();
         router.push('/');
     };
 

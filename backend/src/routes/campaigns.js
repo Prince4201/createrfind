@@ -1,6 +1,5 @@
 import { Router } from 'express';
-import { db, admin } from '../config/firestore.js';
-const { FieldValue } = admin.firestore;
+import { supabase, createAuthClient } from '../config/supabase.js';
 import logger from '../config/logger.js';
 import { validateCampaign, validatePagination } from '../middleware/validator.js';
 
@@ -13,29 +12,27 @@ const router = Router();
 router.post('/', validateCampaign, async (req, res, next) => {
     try {
         const campaign = {
-            campaignName: req.body.campaignName,
+            user_id: req.user.id,
+            campaign_name: req.body.campaignName,
             subject: req.body.subject,
-            bodyTemplate: req.body.bodyTemplate,
-            totalChannels: 0,
-            emailsSent: 0,
-            userId: req.user.uid,
-            createdAt: FieldValue.serverTimestamp(),
-            createdAtISO: new Date().toISOString(),
+            body_template: req.body.bodyTemplate,
+            status: 'draft',
         };
 
-        const docRef = await db.collection('campaigns').add(campaign);
+        const userSupabase = createAuthClient(req.user.token);
+        const { data, error } = await userSupabase
+            .from('campaigns')
+            .insert(campaign)
+            .select()
+            .single();
 
-        // Update analytics
-        await db.collection('analytics').doc('global').set(
-            { totalCampaigns: FieldValue.increment(1) },
-            { merge: true }
-        );
+        if (error) throw error;
 
-        logger.info('Campaign created', { campaignId: docRef.id, userId: req.user.uid });
+        logger.info('Campaign created', { campaignId: data.id, userId: req.user.id });
 
         res.status(201).json({
             success: true,
-            data: { id: docRef.id, ...campaign },
+            data,
         });
     } catch (error) {
         next(error);
@@ -44,37 +41,33 @@ router.post('/', validateCampaign, async (req, res, next) => {
 
 /**
  * GET /api/campaigns
- * List campaigns with pagination.
+ * List user's campaigns with pagination.
  */
 router.get('/', validatePagination, async (req, res, next) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
+        const offset = (page - 1) * limit;
 
-        const snapshot = await db
-            .collection('campaigns')
-            .where('userId', '==', req.user.uid)
-            .get();
+        const userSupabase = createAuthClient(req.user.token);
+        const { data: campaigns, count, error } = await userSupabase
+            .from('campaigns')
+            .select('*', { count: 'exact' })
+            .eq('user_id', req.user.id)
+            .order('created_at', { ascending: false })
+            .range(offset, offset + limit - 1);
 
-        const campaigns = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
-        }));
+        if (error) throw error;
 
-        // Sort in memory (avoids Firestore composite index requirement)
-        // Use createdAtISO as fallback when serverTimestamp isn't resolved yet
-        campaigns.sort((a, b) => {
-            const ta = a.createdAt instanceof Date ? a.createdAt.getTime() : (a.createdAtISO ? new Date(a.createdAtISO).getTime() : 0);
-            const tb = b.createdAt instanceof Date ? b.createdAt.getTime() : (b.createdAtISO ? new Date(b.createdAtISO).getTime() : 0);
-            return tb - ta;
+        res.json({
+            data: campaigns,
+            pagination: {
+                page,
+                limit,
+                total: count || 0,
+                totalPages: Math.ceil((count || 0) / limit),
+            },
         });
-
-        // Manual pagination
-        const start = (page - 1) * limit;
-        const paginated = campaigns.slice(start, start + limit);
-
-        res.json({ data: paginated });
     } catch (error) {
         next(error);
     }
@@ -86,12 +79,50 @@ router.get('/', validatePagination, async (req, res, next) => {
  */
 router.get('/:id', async (req, res, next) => {
     try {
-        const doc = await db.collection('campaigns').doc(req.params.id).get();
-        if (!doc.exists) {
+        const userSupabase = createAuthClient(req.user.token);
+        const { data, error } = await userSupabase
+            .from('campaigns')
+            .select('*')
+            .eq('id', req.params.id)
+            .eq('user_id', req.user.id)
+            .single();
+
+        if (error || !data) {
             return res.status(404).json({ error: 'Campaign not found' });
         }
 
-        res.json({ data: { id: doc.id, ...doc.data() } });
+        res.json({ data });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * PATCH /api/campaigns/:id
+ * Update campaign status.
+ */
+router.patch('/:id', async (req, res, next) => {
+    try {
+        const { status } = req.body;
+        const allowed = ['draft', 'running', 'completed', 'paused'];
+        if (status && !allowed.includes(status)) {
+            return res.status(400).json({ error: `Invalid status. Allowed: ${allowed.join(', ')}` });
+        }
+
+        const userSupabase = createAuthClient(req.user.token);
+        const { data, error } = await userSupabase
+            .from('campaigns')
+            .update({ status })
+            .eq('id', req.params.id)
+            .eq('user_id', req.user.id)
+            .select()
+            .single();
+
+        if (error || !data) {
+            return res.status(404).json({ error: 'Campaign not found' });
+        }
+
+        res.json({ data });
     } catch (error) {
         next(error);
     }

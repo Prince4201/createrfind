@@ -1,37 +1,59 @@
 import { Router } from 'express';
-import { db, admin } from '../config/firestore.js';
+import { supabase } from '../config/supabase.js';
+import crypto from 'crypto';
 import logger from '../config/logger.js';
-const { FieldValue } = admin.firestore;
 
 const router = Router();
 
+// Simple encryption for SMTP passwords at rest
+const ENCRYPTION_KEY = process.env.SMTP_ENCRYPTION_KEY || 'default-32-char-encryption-key!!'; // Must be 32 bytes
+const IV_LENGTH = 16;
+
+function encrypt(text) {
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY, 'utf-8'), iv);
+    let encrypted = cipher.update(text, 'utf-8', 'hex');
+    encrypted += cipher.final('hex');
+    return iv.toString('hex') + ':' + encrypted;
+}
+
+function decrypt(text) {
+    const parts = text.split(':');
+    const iv = Buffer.from(parts.shift(), 'hex');
+    const encrypted = parts.join(':');
+    const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY, 'utf-8'), iv);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf-8');
+    decrypted += decipher.final('utf-8');
+    return decrypted;
+}
+
 /**
  * GET /api/settings/smtp
- * Get SMTP configuration (without password for security)
+ * Get SMTP configuration (without password for security).
  */
 router.get('/smtp', async (req, res, next) => {
     try {
-        const userId = req.user.uid;
-        let data = null;
+        const { data, error } = await supabase
+            .from('email_settings')
+            .select('*')
+            .eq('user_id', req.user.id)
+            .single();
 
-        const userDoc = await db.collection('userSettings').doc(userId).get();
-        if (userDoc.exists && userDoc.data().smtp) {
-            data = userDoc.data().smtp;
-        } else {
-            const systemDoc = await db.collection('systemSettings').doc('smtp').get();
-            if (systemDoc.exists) {
-                data = systemDoc.data();
-            }
-        }
-
-        if (!data) {
+        if (error && error.code === 'PGRST116') {
+            // No settings found
             return res.json({ data: null });
         }
-        
-        // Omit password from response
-        delete data.smtpPassword;
-        
-        res.json({ data });
+        if (error) throw error;
+
+        // Omit encrypted password from response
+        const { smtp_password_encrypted, ...safe } = data;
+
+        res.json({
+            data: {
+                ...safe,
+                hasPassword: !!smtp_password_encrypted,
+            },
+        });
     } catch (error) {
         next(error);
     }
@@ -39,42 +61,51 @@ router.get('/smtp', async (req, res, next) => {
 
 /**
  * POST /api/settings/smtp
- * Update SMTP configuration
+ * Create or update SMTP configuration. Encrypts password before storing.
  */
 router.post('/smtp', async (req, res, next) => {
     try {
-        const userId = req.user.uid;
         const { senderEmail, smtpHost, smtpPort, smtpUser, smtpPassword } = req.body;
-        
-        const updateData = {
-            senderEmail,
-            smtpHost,
-            smtpPort: parseInt(smtpPort, 10),
-            smtpUser,
-            updatedAt: FieldValue.serverTimestamp(),
+
+        if (!senderEmail || !smtpHost || !smtpPort || !smtpUser) {
+            return res.status(400).json({ error: 'All SMTP fields are required' });
+        }
+
+        const upsertData = {
+            user_id: req.user.id,
+            sender_email: senderEmail,
+            smtp_host: smtpHost,
+            smtp_port: parseInt(smtpPort, 10),
+            smtp_user: smtpUser,
         };
 
-        // If there's no password provided, try to retain the old one
+        // Encrypt password if provided
         if (smtpPassword) {
-            updateData.smtpPassword = smtpPassword;
+            upsertData.smtp_password_encrypted = encrypt(smtpPassword);
         } else {
-            // Fetch existing settings to preserve password
-            const userDoc = await db.collection('userSettings').doc(userId).get();
-            if (userDoc.exists && userDoc.data().smtp && userDoc.data().smtp.smtpPassword) {
-                updateData.smtpPassword = userDoc.data().smtp.smtpPassword;
+            // Retain existing password
+            const { data: existing } = await supabase
+                .from('email_settings')
+                .select('smtp_password_encrypted')
+                .eq('user_id', req.user.id)
+                .single();
+
+            if (existing?.smtp_password_encrypted) {
+                upsertData.smtp_password_encrypted = existing.smtp_password_encrypted;
             } else {
-                const systemDoc = await db.collection('systemSettings').doc('smtp').get();
-                if (systemDoc.exists && systemDoc.data().smtpPassword) {
-                     updateData.smtpPassword = systemDoc.data().smtpPassword;
-                }
+                return res.status(400).json({ error: 'SMTP password is required for first-time setup' });
             }
         }
 
-        const docRef = db.collection('userSettings').doc(userId);
-        
-        await docRef.set({ smtp: updateData }, { merge: true });
+        const { data, error } = await supabase
+            .from('email_settings')
+            .upsert(upsertData, { onConflict: 'user_id' })
+            .select()
+            .single();
 
-        logger.info('SMTP settings updated for user', { userId });
+        if (error) throw error;
+
+        logger.info('SMTP settings updated', { userId: req.user.id });
 
         res.json({ success: true, message: 'SMTP settings saved successfully' });
     } catch (error) {
@@ -82,4 +113,48 @@ router.post('/smtp', async (req, res, next) => {
     }
 });
 
+/**
+ * POST /api/settings/smtp/test
+ * Test SMTP connection with current settings.
+ */
+router.post('/smtp/test', async (req, res, next) => {
+    try {
+        const { data: settings, error } = await supabase
+            .from('email_settings')
+            .select('*')
+            .eq('user_id', req.user.id)
+            .single();
+
+        if (error || !settings) {
+            return res.status(404).json({ error: 'No SMTP settings found. Please save settings first.' });
+        }
+
+        // Decrypt password for test
+        const nodemailer = (await import('nodemailer')).default;
+        const decryptedPassword = decrypt(settings.smtp_password_encrypted);
+
+        const transporter = nodemailer.createTransport({
+            host: settings.smtp_host,
+            port: settings.smtp_port,
+            secure: settings.smtp_port === 465,
+            auth: {
+                user: settings.smtp_user,
+                pass: decryptedPassword,
+            },
+        });
+
+        await transporter.verify();
+
+        res.json({ success: true, message: 'SMTP connection successful!' });
+    } catch (error) {
+        logger.warn('SMTP test failed', { error: error.message, userId: req.user.id });
+        res.status(400).json({
+            success: false,
+            error: `SMTP connection failed: ${error.message}`,
+        });
+    }
+});
+
+// Export decrypt for use by emailService
+export { decrypt };
 export default router;

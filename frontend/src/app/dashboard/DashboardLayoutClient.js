@@ -1,11 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { createClient } from '@/utils/supabase/client';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import styles from './layout.module.css';
+import api from '@/lib/api';
 
 export default function DashboardLayoutClient({ children }) {
     const router = useRouter();
@@ -13,36 +13,37 @@ export default function DashboardLayoutClient({ children }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const unsub = onAuthStateChanged(auth, async (u) => {
+        const supabase = createClient();
+
+        // Check initial session
+        supabase.auth.getUser().then(({ data: { user: u } }) => {
             if (!u) {
                 router.push('/');
                 setLoading(false);
                 return;
             }
+            
+            // Ping backend to ensure user exists in public.users (resolves foreign key & admin errors)
+            api.verifyToken().catch(err => console.error('Failed to verify token on backend:', err));
 
-            // Force token refresh to get latest emailVerified status from server
-            try {
-                await u.getIdToken(true);
-                await u.reload();
-            } catch {
-                // Token refresh failed — user might be deleted
-                await auth.signOut();
-                router.push('/');
-                setLoading(false);
-                return;
-            }
-
-            if (!u.emailVerified) {
-                await auth.signOut();
-                router.push('/');
-                setLoading(false);
-                return;
-            }
-
-            setUser({ uid: u.uid, email: u.email, name: u.displayName || u.email });
+            setUser({
+                id: u.id,
+                email: u.email,
+                name: u.user_metadata?.name || u.email,
+            });
             setLoading(false);
         });
-        return () => unsub();
+
+        // Listen for auth state changes (e.g. logout)
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+            (event, session) => {
+                if (event === 'SIGNED_OUT' || !session) {
+                    router.push('/');
+                }
+            }
+        );
+
+        return () => subscription.unsubscribe();
     }, [router]);
 
     if (loading) {

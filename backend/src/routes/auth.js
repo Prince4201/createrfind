@@ -1,48 +1,62 @@
 import { Router } from 'express';
-import { admin, db } from '../config/firestore.js';
+import { supabase } from '../config/supabase.js';
 import logger from '../config/logger.js';
 
 const router = Router();
 
 /**
- * POST /api/auth/login
- * Verify Firebase ID token, save user profile to Firestore, and return user profile.
+ * POST /api/auth/verify
+ * Verify Supabase access token and return user profile from public.users.
+ * Called by frontend after login/signup to confirm backend connectivity.
  */
-router.post('/login', async (req, res, next) => {
+router.post('/verify', async (req, res, next) => {
     try {
-        const { idToken } = req.body;
-
-        if (!idToken) {
-            return res.status(400).json({ error: 'idToken is required' });
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'Missing token' });
         }
 
-        const decodedToken = await admin.auth().verifyIdToken(idToken);
-        const user = {
-            uid: decodedToken.uid,
-            email: decodedToken.email,
-            name: decodedToken.name || decodedToken.email,
-            picture: decodedToken.picture || null,
-        };
+        const token = authHeader.split(' ')[1];
+        const { data: { user }, error } = await supabase.auth.getUser(token);
 
-        // Save/update user profile in Firestore
-        try {
-            await db.collection('users').doc(user.uid).set({
-                uid: user.uid,
+        if (error || !user) {
+            return res.status(401).json({ error: 'Invalid token' });
+        }
+
+        // Always ensure user exists in public.users (acts as an auto-sync since we don't have SQL triggers)
+        // We use the global service_role supabase client which bypasses RLS
+        const { data: profile, error: upsertError } = await supabase
+            .from('users')
+            .upsert({
+                id: user.id,
                 email: user.email,
-                name: user.name,
-                lastLoginAt: new Date(),
-            }, { merge: true });
-        } catch (err) {
-            logger.warn('Failed to save user profile', { error: err.message });
+                name: user.user_metadata?.name || user.email,
+                role: 'admin' // Grant admin by default for this single-user demo
+            }, { onConflict: 'id' })
+            .select()
+            .single();
+
+        if (upsertError) {
+            logger.error('Failed to sync user to public.users', { error: upsertError });
+            return res.status(500).json({ error: 'Failed to sync user profile' });
         }
 
-        logger.info('User authenticated', { uid: user.uid, email: user.email });
+        if (profile?.status === 'blocked') {
+            return res.status(403).json({ error: 'Account is blocked' });
+        }
 
-        res.json({ user });
+        // Update last login
+        await supabase
+            .from('users')
+            .update({ last_login_at: new Date().toISOString() })
+            .eq('id', user.id);
+
+        logger.info('User verified', { id: user.id, email: user.email });
+
+        res.json({ user: profile });
     } catch (error) {
         next(error);
     }
 });
 
 export default router;
-

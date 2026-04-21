@@ -11,7 +11,7 @@ export default function ChannelTable({ channels = [], selectable = false, select
 
     const toggleAll = () => {
         if (!onSelect) return;
-        onSelect(selected.length === channels.length ? [] : channels.map((c) => c.channelId));
+        onSelect(selected.length === channels.length ? [] : channels.map((c) => c.channel_id || c.channelId));
     };
 
     if (channels.length === 0) {
@@ -48,13 +48,13 @@ export default function ChannelTable({ channels = [], selectable = false, select
                 </thead>
                 <tbody>
                     {channels.map((ch, i) => (
-                        <tr key={ch.channelId || i} className={styles.row}>
+                        <tr key={ch.channel_id || ch.channelId || i} className={styles.row}>
                             {selectable && (
                                 <td>
                                     <input
                                         type="checkbox"
-                                        checked={selected.includes(ch.channelId)}
-                                        onChange={() => toggleSelect(ch.channelId)}
+                                        checked={selected.includes(ch.channel_id || ch.channelId)}
+                                        onChange={() => toggleSelect(ch.channel_id || ch.channelId)}
                                         className={styles.checkbox}
                                     />
                                 </td>
@@ -62,28 +62,28 @@ export default function ChannelTable({ channels = [], selectable = false, select
                             <td>
                                 <div className={styles.channelCell}>
                                     <a
-                                        href={ch.channelUrl}
+                                        href={ch.channel_url || ch.channelUrl}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className={styles.channelName}
                                     >
-                                        {ch.channelName}
+                                        {ch.name || ch.channelName}
                                     </a>
                                 </div>
                             </td>
                             <td className={styles.number}>{(ch.subscribers || 0).toLocaleString()}</td>
-                            <td className={styles.number}>{(ch.avgViews || 0).toLocaleString()}</td>
+                            <td className={styles.number}>{(ch.avg_views || ch.avgViews || 0).toLocaleString()}</td>
                             <td>
                                 <span className={styles.email}>{ch.email || '—'}</span>
                             </td>
                             <td>
-                                <span className={`badge ${ch.emailSent ? 'badge-success' : 'badge-warning'}`}>
-                                    {ch.emailSent ? 'Sent' : 'Pending'}
+                                <span className={`badge ${ch.email_sent || ch.emailSent ? 'badge-success' : 'badge-warning'}`}>
+                                    {ch.email_sent || ch.emailSent ? 'Sent' : 'Pending'}
                                 </span>
                             </td>
                             <td className={styles.date}>
-                                {ch.scrapedAt
-                                    ? new Date(ch.scrapedAt).toLocaleDateString()
+                                {ch.created_at || ch.scrapedAt
+                                    ? new Date(ch.created_at || ch.scrapedAt).toLocaleDateString()
                                     : '—'}
                             </td>
                         </tr>

@@ -1,16 +1,16 @@
-import { auth } from './firebase';
+import { createClient } from '@/utils/supabase/client';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 async function getHeaders() {
     const headers = { 'Content-Type': 'application/json' };
 
-    // Get Firebase auth token
+    // Get Supabase auth token
     try {
-        const user = auth.currentUser;
-        if (user) {
-            const token = await user.getIdToken();
-            headers['Authorization'] = `Bearer ${token}`;
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+            headers['Authorization'] = `Bearer ${session.access_token}`;
         }
     } catch {
         // Not authenticated
@@ -35,10 +35,11 @@ async function request(path, options = {}) {
 
 const api = {
     // Auth
-    login: (idToken) => request('/api/auth/login', { method: 'POST', body: JSON.stringify({ idToken }) }),
+    verifyToken: () => request('/api/auth/verify', { method: 'POST' }),
 
     // Channels
     discoverChannels: (filters) => request('/api/channels/discover', { method: 'POST', body: JSON.stringify(filters) }),
+    getDiscoverStatus: (searchHistoryId) => request(`/api/channels/discover/status/${searchHistoryId}`),
     getChannels: (params = '') => request(`/api/channels?${params}`),
     getChannel: (id) => request(`/api/channels/${id}`),
 
@@ -46,6 +47,7 @@ const api = {
     createCampaign: (data) => request('/api/campaigns', { method: 'POST', body: JSON.stringify(data) }),
     getCampaigns: (params = '') => request(`/api/campaigns?${params}`),
     getCampaign: (id) => request(`/api/campaigns/${id}`),
+    updateCampaign: (id, data) => request(`/api/campaigns/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
     // Emails
     sendEmails: (data) => request('/api/emails/send', { method: 'POST', body: JSON.stringify(data) }),
@@ -57,10 +59,14 @@ const api = {
     // Sheets
     syncSheets: () => request('/api/sheets/sync', { method: 'POST' }),
     getSheetsStatus: () => request('/api/sheets/status'),
-    
+
     // Settings
     getSmtpSettings: () => request('/api/settings/smtp'),
     updateSmtpSettings: (data) => request('/api/settings/smtp', { method: 'POST', body: JSON.stringify(data) }),
+    testSmtpConnection: () => request('/api/settings/smtp/test', { method: 'POST' }),
+
+    // Admin
+    getAdminStats: () => request('/api/admin/stats'),
 };
 
 export default api;

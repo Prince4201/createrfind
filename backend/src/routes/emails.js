@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../config/firestore.js';
+import { supabase } from '../config/supabase.js';
 import logger from '../config/logger.js';
 import { validateSendEmails, validatePagination } from '../middleware/validator.js';
 
@@ -8,36 +8,45 @@ const router = Router();
 /**
  * POST /api/emails/send
  * Send personalized emails to selected channels for a campaign.
+ * Delegates to the email service which reads SMTP config from Supabase.
  */
 router.post('/send', validateSendEmails, async (req, res, next) => {
     try {
         const { campaignId, channelIds } = req.body;
 
-        // Fetch campaign
-        const campaignDoc = await db.collection('campaigns').doc(campaignId).get();
-        if (!campaignDoc.exists) {
+        // Verify campaign belongs to user
+        const { data: campaign, error: campErr } = await supabase
+            .from('campaigns')
+            .select('*')
+            .eq('id', campaignId)
+            .eq('user_id', req.user.id)
+            .single();
+
+        if (campErr || !campaign) {
             return res.status(404).json({ error: 'Campaign not found' });
         }
-        const campaign = { id: campaignDoc.id, ...campaignDoc.data(), userId: req.user.uid };
 
-        // Fetch channels
-        const channels = [];
-        for (const channelId of channelIds.slice(0, 50)) {
-            const doc = await db.collection('channels').doc(channelId).get();
-            if (doc.exists && doc.data().email) {
-                channels.push({ id: doc.id, ...doc.data() });
-            }
-        }
+        // Fetch channels with emails
+        const { data: channels, error: chErr } = await supabase
+            .from('channels')
+            .select('*')
+            .in('channel_id', channelIds.slice(0, 50))
+            .not('email', 'is', null);
 
-        if (channels.length === 0) {
+        if (chErr) throw chErr;
+
+        if (!channels || channels.length === 0) {
             return res.status(400).json({ error: 'No valid channels with emails found' });
         }
 
         // Send emails
         const emailService = req.app.get('emailService');
-        const result = await emailService.sendBulk(campaign, channels);
+        const result = await emailService.sendBulk(
+            { ...campaign, userId: req.user.id },
+            channels
+        );
 
-        logger.info('Emails sent', { campaignId, ...result, userId: req.user.uid });
+        logger.info('Emails sent', { campaignId, ...result, userId: req.user.id });
 
         res.json({
             success: true,
@@ -50,37 +59,32 @@ router.post('/send', validateSendEmails, async (req, res, next) => {
 
 /**
  * GET /api/emails/history
- * Get email send history from activity logs.
+ * Get email send history for the current user.
  */
 router.get('/history', validatePagination, async (req, res, next) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
+        const offset = (page - 1) * limit;
 
-        // Simple query — no orderBy to avoid composite index requirements
-        const snapshot = await db
-            .collection('emailLogs')
-            .where('userId', '==', req.user.uid)
-            .get();
+        const { data: history, count, error } = await supabase
+            .from('email_logs')
+            .select('*, campaigns(campaign_name)', { count: 'exact' })
+            .eq('user_id', req.user.id)
+            .order('sent_at', { ascending: false, nullsFirst: false })
+            .range(offset, offset + limit - 1);
 
-        const history = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-            sentAt: doc.data().sentAt?.toDate?.() || doc.data().sentAt,
-        }));
+        if (error) throw error;
 
-        // Sort in memory
-        history.sort((a, b) => {
-            const ta = a.sentAt instanceof Date ? a.sentAt.getTime() : 0;
-            const tb = b.sentAt instanceof Date ? b.sentAt.getTime() : 0;
-            return tb - ta;
+        res.json({
+            data: history,
+            pagination: {
+                page,
+                limit,
+                total: count || 0,
+                totalPages: Math.ceil((count || 0) / limit),
+            },
         });
-
-        // Manual pagination
-        const start = (page - 1) * limit;
-        const paginated = history.slice(start, start + limit);
-
-        res.json({ data: paginated });
     } catch (error) {
         next(error);
     }

@@ -3,7 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import logger from './config/logger.js';
 import { loadSecrets } from './config/secrets.js';
-import authMiddleware from './middleware/auth.js';
+import authMiddleware from './middleware/supabaseAuth.js';
 import { generalLimiter } from './middleware/rateLimiter.js';
 import errorHandler from './middleware/errorHandler.js';
 
@@ -15,6 +15,7 @@ import emailRoutes from './routes/emails.js';
 import analyticsRoutes from './routes/analytics.js';
 import sheetRoutes from './routes/sheets.js';
 import settingsRoutes from './routes/settings.js';
+import adminRoutes from './routes/admin.js';
 
 // Service imports
 import YouTubeService from './services/youtubeService.js';
@@ -42,8 +43,9 @@ export async function getApp() {
         app.use(generalLimiter);
 
         app.get("/", (req, res) => {
-            res.json({ message: "Hello World" })
-        })
+            res.json({ message: "YouTube Creator Discovery API" });
+        });
+
         // ------- Health check (no auth) -------
         app.get('/health', (_req, res) => {
             res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -52,13 +54,14 @@ export async function getApp() {
         // ------- Public routes -------
         app.use('/api/auth', authRoutes);
 
-        // ------- Protected routes -------
+        // ------- Protected routes (Supabase JWT auth) -------
         app.use('/api/channels', authMiddleware, channelRoutes);
         app.use('/api/campaigns', authMiddleware, campaignRoutes);
         app.use('/api/emails', authMiddleware, emailRoutes);
         app.use('/api/analytics', authMiddleware, analyticsRoutes);
         app.use('/api/sheets', authMiddleware, sheetRoutes);
         app.use('/api/settings', authMiddleware, settingsRoutes);
+        app.use('/api/admin', adminRoutes); // Has its own auth + admin check
 
         // ------- Error handler -------
         app.use(errorHandler);
@@ -78,7 +81,6 @@ export async function getApp() {
         }
 
         const filterEngine = new FilterEngine(youtubeService, sheetsService);
-
         const emailService = new EmailService();
 
         // Attach services to app for route access
@@ -91,7 +93,6 @@ export async function getApp() {
             env: process.env.NODE_ENV,
             services: {
                 youtube: !!secrets.youtubeApiKey,
-                sendgrid: !!secrets.sendgridApiKey,
                 sheets: !!sheetsService,
             },
         });
@@ -122,4 +123,3 @@ async function start() {
 if (process.argv[1] && process.argv[1].endsWith('app.js')) {
     start();
 }
-

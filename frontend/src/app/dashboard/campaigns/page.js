@@ -113,14 +113,14 @@ export default function CampaignsPage() {
                 <div className={styles.campaignGrid}>
                     {campaigns.map((c) => (
                         <div key={c.id} className={styles.campaignCard}>
-                            <h3 className={styles.campaignName}>{c.campaignName}</h3>
+                            <h3 className={styles.campaignName}>{c.campaign_name || c.campaignName}</h3>
                             <p className={styles.campaignSubject}>{c.subject}</p>
                             <div className={styles.campaignStats}>
                                 <span>
                                     <strong>{c.emailsSent || 0}</strong> emails sent
                                 </span>
                                 <span className={styles.campaignDate}>
-                                    {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '—'}
+                                    {c.created_at || c.createdAt ? new Date(c.created_at || c.createdAt).toLocaleDateString() : '—'}
                                 </span>
                             </div>
                         </div>

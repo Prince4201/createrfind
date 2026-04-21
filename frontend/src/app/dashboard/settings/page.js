@@ -6,7 +6,9 @@ import api from '@/lib/api';
 export default function SettingsPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [testing, setTesting] = useState(false);
     const [result, setResult] = useState(null);
+    const [hasExistingPassword, setHasExistingPassword] = useState(false);
 
     const [smtpSettings, setSmtpSettings] = useState({
         senderEmail: '',
@@ -21,15 +23,16 @@ export default function SettingsPage() {
             .then((res) => {
                 if (res.data) {
                     setSmtpSettings({
-                        senderEmail: res.data.senderEmail || '',
-                        smtpHost: res.data.smtpHost || '',
-                        smtpPort: res.data.smtpPort || 587,
-                        smtpUser: res.data.smtpUser || '',
-                        smtpPassword: '', // Don't show existing password
+                        senderEmail: res.data.sender_email || '',
+                        smtpHost: res.data.smtp_host || '',
+                        smtpPort: res.data.smtp_port || 587,
+                        smtpUser: res.data.smtp_user || '',
+                        smtpPassword: '',
                     });
+                    setHasExistingPassword(!!res.data.hasPassword);
                 }
             })
-            .catch((err) => {
+            .catch(() => {
                 setResult({ error: 'Failed to load settings.' });
             })
             .finally(() => {
@@ -53,12 +56,26 @@ export default function SettingsPage() {
         try {
             await api.updateSmtpSettings(smtpSettings);
             setResult({ success: 'SMTP settings saved successfully!' });
-            // clear the password field after save for security
+            setHasExistingPassword(true);
             setSmtpSettings((prev) => ({ ...prev, smtpPassword: '' }));
         } catch (err) {
             setResult({ error: err.message || 'Failed to save settings' });
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleTest = async () => {
+        setTesting(true);
+        setResult(null);
+
+        try {
+            const res = await api.testSmtpConnection();
+            setResult({ success: res.message || 'SMTP connection successful!' });
+        } catch (err) {
+            setResult({ error: err.message || 'SMTP connection test failed' });
+        } finally {
+            setTesting(false);
         }
     };
 
@@ -154,10 +171,12 @@ export default function SettingsPage() {
                             name="smtpPassword"
                             value={smtpSettings.smtpPassword}
                             onChange={handleChange}
-                            placeholder="Leave blank to keep existing password"
+                            placeholder={hasExistingPassword ? 'Leave blank to keep existing password' : 'Enter SMTP password'}
                             className="input-field"
+                            required={!hasExistingPassword}
                         />
                         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 6 }}>
+                            {hasExistingPassword && '🔒 Password is encrypted and stored securely. '}
                             If using Gmail, generate an <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" style={{ color: 'var(--brand)', textDecoration: 'none' }}>App Password</a>.
                         </p>
                     </div>
@@ -175,7 +194,15 @@ export default function SettingsPage() {
                         </div>
                     )}
 
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 10 }}>
+                        <button
+                            type="button"
+                            className="btn btn-ghost"
+                            disabled={testing || !hasExistingPassword}
+                            onClick={handleTest}
+                        >
+                            {testing ? 'Testing...' : '🔌 Test Connection'}
+                        </button>
                         <button type="submit" className="btn btn-primary" disabled={saving}>
                             {saving ? 'Saving...' : 'Save Configuration'}
                         </button>

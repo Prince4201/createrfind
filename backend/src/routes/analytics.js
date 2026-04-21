@@ -1,48 +1,49 @@
 import { Router } from 'express';
-import { db } from '../config/firestore.js';
+import { supabase } from '../config/supabase.js';
 import logger from '../config/logger.js';
 
 const router = Router();
 
 /**
  * GET /api/analytics
- * Compute real-time dashboard analytics from user's data.
+ * Compute real-time dashboard analytics for the current user.
  */
 router.get('/', async (req, res, next) => {
     try {
-        const uid = req.user.uid;
+        const userId = req.user.id;
 
-        // Compute real analytics from collections (parallel queries)
-        const [channelsSnap, campaignsSnap, emailLogsSnap, activitySnap] = await Promise.all([
-            db.collection('channels').where('createdByUserId', '==', uid).get(),
-            db.collection('campaigns').where('userId', '==', uid).get(),
-            db.collection('emailLogs').where('userId', '==', uid).get(),
-            db.collection('activityLogs').where('userId', '==', uid).get(),
+        // Parallel count queries for performance
+        const [channelsRes, campaignsRes, emailsSentRes, searchesRes] = await Promise.all([
+            supabase.from('channels').select('*', { count: 'exact', head: true }).eq('fetched_by_user_id', userId),
+            supabase.from('campaigns').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+            supabase.from('email_logs').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'sent'),
+            supabase.from('search_history').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(30),
         ]);
 
-        const totalChannels = channelsSnap.size;
-        const totalCampaigns = campaignsSnap.size;
-        const totalEmailsSent = emailLogsSnap.docs.filter(d => d.data().status === 'Sent').length;
+        const totalChannels = channelsRes.count || 0;
+        const totalCampaigns = campaignsRes.count || 0;
+        const totalEmailsSent = emailsSentRes.count || 0;
+        const recentSearches = searchesRes.data || [];
 
-        // Get recent activity (sort in memory to avoid composite index)
-        const activity = activitySnap.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-            timestamp: doc.data().timestamp?.toDate?.() || doc.data().timestamp,
+        // Build activity timeline from recent searches
+        const recentActivity = recentSearches.map(s => ({
+            id: s.id,
+            action: 'discovery',
+            timestamp: s.created_at,
+            metadata: {
+                query: s.query,
+                channelsFound: s.returned_count,
+                status: s.refresh_status,
+            },
         }));
-        activity.sort((a, b) => {
-            const ta = a.timestamp instanceof Date ? a.timestamp.getTime() : 0;
-            const tb = b.timestamp instanceof Date ? b.timestamp.getTime() : 0;
-            return tb - ta;
-        });
 
         res.json({
             data: {
                 totalChannels,
                 totalEmailsSent,
                 totalCampaigns,
-                lastDiscoveryAt: activity.find(a => a.action === 'discovery')?.timestamp || null,
-                recentActivity: activity.slice(0, 30),
+                lastDiscoveryAt: recentSearches[0]?.created_at || null,
+                recentActivity,
             },
         });
     } catch (error) {
@@ -51,4 +52,3 @@ router.get('/', async (req, res, next) => {
 });
 
 export default router;
-

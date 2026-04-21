@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../config/firestore.js';
+import { supabase } from '../config/supabase.js';
 import logger from '../config/logger.js';
 
 const router = Router();
@@ -7,7 +7,6 @@ const router = Router();
 /**
  * POST /api/sheets/sync
  * Sync the current user's channels into their own tab in the shared Google Sheet.
- * Never touches other users' data.
  */
 router.post('/sync', async (req, res, next) => {
     try {
@@ -18,52 +17,43 @@ router.post('/sync', async (req, res, next) => {
         }
 
         const userEmail = req.user.email;
-        const userId = req.user.uid;
+        const userId = req.user.id;
 
         if (!userEmail) {
             return res.status(400).json({ error: 'User email is required for sheet sync' });
         }
 
-        // Fetch user's channels from Firestore
-        const snapshot = await db
-            .collection('channels')
-            .where('createdByUserId', '==', userId)
-            .get();
+        // Fetch user's channels from Supabase
+        const { data: allChannels, error } = await supabase
+            .from('channels')
+            .select('*')
+            .eq('fetched_by_user_id', userId)
+            .order('last_fetched_at', { ascending: false });
 
-        const allChannels = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-            scrapedAt: doc.data().scrapedAt?.toDate?.() || new Date(),
-        }));
+        if (error) throw error;
 
-        // Sort by scrapedAt desc in memory (newest first)
-        allChannels.sort((a, b) => {
-            const ta = a.scrapedAt instanceof Date ? a.scrapedAt.getTime() : 0;
-            const tb = b.scrapedAt instanceof Date ? b.scrapedAt.getTime() : 0;
-            return tb - ta;
-        });
-
-        if (allChannels.length === 0) {
+        if (!allChannels || allChannels.length === 0) {
             return res.json({
                 success: true,
                 data: { syncedCount: 0, message: 'No channels to sync' },
             });
         }
 
-        // Sync into user's own tab — never clears other users' data
-        const result = await sheetsService.syncUserChannels(allChannels, userEmail);
+        // Map Supabase columns to the format sheetsService expects
+        const mapped = allChannels.map(ch => ({
+            channelId: ch.channel_id,
+            channelName: ch.name,
+            channelUrl: ch.channel_url,
+            subscribers: ch.subscribers,
+            avgViews: ch.avg_views,
+            email: ch.email,
+            description: ch.description,
+            category: ch.category,
+            scrapedAt: ch.last_fetched_at ? new Date(ch.last_fetched_at) : new Date(),
+        }));
 
-        // Mark channels as synced in Firestore
-        const BATCH_LIMIT = 500;
-        for (let i = 0; i < allChannels.length; i += BATCH_LIMIT) {
-            const batch = db.batch();
-            const chunk = allChannels.slice(i, i + BATCH_LIMIT);
-            for (const ch of chunk) {
-                const docRef = db.collection('channels').doc(ch.id);
-                batch.update(docRef, { sheetSynced: true, sheetSyncedAt: new Date() });
-            }
-            await batch.commit();
-        }
+        // Sync into user's own tab
+        const result = await sheetsService.syncUserChannels(mapped, userEmail);
 
         logger.info('Sheets sync completed', { userId, userEmail, ...result });
 
