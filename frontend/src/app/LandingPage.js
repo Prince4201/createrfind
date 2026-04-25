@@ -154,6 +154,11 @@ export default function LandingPage() {
     });
   };
 
+  const handlePreviewMouseEnter = (e) => {
+    handlePreviewMouseMove(e);
+    setHoveringPreview(true);
+  };
+
   const previewParallax = hoveringPreview
     ? { transform: `rotateX(${-previewMouse.y * 12}deg) rotateY(${previewMouse.x * 12}deg) scale(1.02)` }
     : { transform: `rotateX(4deg) rotateY(-2deg)` };
@@ -280,7 +285,7 @@ export default function LandingPage() {
           <div 
             className={styles.previewFrame} 
             style={previewParallax}
-            onMouseEnter={() => setHoveringPreview(true)}
+            onMouseEnter={handlePreviewMouseEnter}
             onMouseLeave={() => setHoveringPreview(false)}
             onMouseMove={handlePreviewMouseMove}
           >
