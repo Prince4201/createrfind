@@ -24,7 +24,7 @@ class YouTubeService {
     }
 
     /* ---------- search.list — find channels by keyword ---------- */
-    async searchChannels(keyword, pageToken = null) {
+    async searchChannels(keyword, pageToken = null, userId = null) {
         const params = {
             part: 'snippet',
             q: keyword,
@@ -34,7 +34,7 @@ class YouTubeService {
         };
         if (pageToken) params.pageToken = pageToken;
 
-        const res = await this._call(() => this.youtube.search.list(params));
+        const res = await this._call(() => this.youtube.search.list(params), 100, userId, 'youtube.search.list');
         return {
             channels: (res.data.items || []).map((item) => ({
                 channelId: item.snippet.channelId || item.id.channelId,
@@ -47,7 +47,7 @@ class YouTubeService {
     }
 
     /* ---------- channels.list — subscriber count + full snippet ---------- */
-    async getChannelDetails(channelIds) {
+    async getChannelDetails(channelIds, userId = null) {
         const ids = Array.isArray(channelIds) ? channelIds : [channelIds];
         const batches = [];
         for (let i = 0; i < ids.length; i += 50) {
@@ -60,7 +60,8 @@ class YouTubeService {
                 this.youtube.channels.list({
                     part: 'snippet,statistics',
                     id: batch.join(','),
-                })
+                }),
+                1, userId, 'youtube.channels.list'
             );
             for (const item of res.data.items || []) {
                 results.push({
@@ -152,10 +153,19 @@ class YouTubeService {
     }
 
     /* ---------- Internal: API call with retry + quota handling ---------- */
-    async _call(fn, retries = 3) {
+    async _call(fn, units = 1, userId = null, apiName = 'youtube_v3', retries = 3) {
         for (let attempt = 1; attempt <= retries; attempt++) {
             try {
-                return await fn();
+                const res = await fn();
+                
+                // Log usage if userId is provided
+                if (userId) {
+                    this._logUsage(userId, apiName, units).catch(err => 
+                        logger.error('Failed to log API usage:', err.message)
+                    );
+                }
+
+                return res;
             } catch (error) {
                 const status = error?.response?.status || error?.code;
 
@@ -166,8 +176,6 @@ class YouTubeService {
                             message: error.message,
                         });
                         this._rotateKey();
-                        // Reset attempt counter for the new key? 
-                        // Let's just continue the loop, it will retry with the new key in the next iteration.
                         continue; 
                     } else {
                         logger.error('YouTube API quota exceeded (no more keys to rotate)', {
@@ -190,6 +198,18 @@ class YouTubeService {
                 throw error;
             }
         }
+    }
+
+    async _logUsage(userId, apiName, units) {
+        const { supabase } = await import('../config/supabase.js');
+        await supabase
+            .from('api_usage')
+            .insert({
+                user_id: userId,
+                api_name: apiName,
+                units_used: units,
+                status: 'success'
+            });
     }
 }
 

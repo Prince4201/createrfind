@@ -37,7 +37,7 @@ class FilterEngine {
 
         while (validChannels.length < target) {
             // 1. Search for channels
-            const searchResult = await this.yt.searchChannels(keyword, pageToken);
+            const searchResult = await this.yt.searchChannels(keyword, pageToken, userId);
             pageToken = searchResult.nextPageToken;
 
             if (searchResult.channels.length === 0) {
@@ -80,7 +80,7 @@ class FilterEngine {
 
                     try {
                         // Fetch detailed channel info
-                        const details = await this.yt.getChannelDetails(ch.channelId);
+                        const details = await this.yt.getChannelDetails(ch.channelId, userId);
                         if (!details.length) return null;
                         const channel = details[0];
 
