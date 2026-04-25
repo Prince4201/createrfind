@@ -1,7 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
-import { Rocket } from 'lucide-react';
+import { Rocket, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
 import styles from './page.module.css';
 
@@ -11,6 +11,7 @@ export default function CampaignsPage() {
     const [showCreate, setShowCreate] = useState(false);
     const [form, setForm] = useState({ campaignName: '', subject: '', bodyTemplate: '' });
     const [creating, setCreating] = useState(false);
+    const [deleting, setDeleting] = useState(null);
 
     useEffect(() => {
         fetchCampaigns();
@@ -40,6 +41,20 @@ export default function CampaignsPage() {
             alert('Failed to create campaign: ' + err.message);
         } finally {
             setCreating(false);
+        }
+    };
+
+    const handleDelete = async (id, name) => {
+        if (!confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) return;
+        setDeleting(id);
+        try {
+            await api.deleteCampaign(id);
+            fetchCampaigns();
+        } catch (err) {
+            console.error('Failed to delete campaign:', err);
+            alert('Failed to delete campaign: ' + err.message);
+        } finally {
+            setDeleting(null);
         }
     };
 
@@ -114,7 +129,24 @@ export default function CampaignsPage() {
                 <div className={styles.campaignGrid}>
                     {campaigns.map((c) => (
                         <div key={c.id} className={styles.campaignCard}>
-                            <h3 className={styles.campaignName}>{c.campaign_name || c.campaignName}</h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <h3 className={styles.campaignName}>{c.campaign_name || c.campaignName}</h3>
+                                <button
+                                    onClick={() => handleDelete(c.id, c.campaign_name || c.campaignName)}
+                                    disabled={deleting === c.id}
+                                    title="Delete campaign"
+                                    style={{
+                                        background: 'none', border: 'none', cursor: 'pointer',
+                                        color: 'var(--text-muted)', padding: '4px', borderRadius: 'var(--radius-xs)',
+                                        transition: 'all var(--transition-fast)', flexShrink: 0,
+                                        opacity: deleting === c.id ? 0.4 : 0.6
+                                    }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.color = '#ff6b6b'; e.currentTarget.style.opacity = '1'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.opacity = '0.6'; }}
+                                >
+                                    <Trash2 size={15} />
+                                </button>
+                            </div>
                             <p className={styles.campaignSubject}>{c.subject}</p>
                             <div className={styles.campaignStats}>
                                 <span>

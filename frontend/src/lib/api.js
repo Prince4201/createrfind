@@ -3,11 +3,19 @@ import { createClient } from '@/utils/supabase/client';
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(/\/$/, '');
 const IS_DEV = process.env.NODE_ENV === 'development';
 
+// Cache supabase client singleton — avoids re-creating on every API call
+let _supabase = null;
+const getSupabase = () => {
+    if (!_supabase) _supabase = createClient();
+    return _supabase;
+};
+
 async function getHeaders() {
     const headers = { 'Content-Type': 'application/json' };
 
     try {
-        const supabase = createClient();
+        const supabase = getSupabase();
+        // getSession() reads from local storage (instant), getUser() hits the network
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session?.access_token) {
@@ -45,6 +53,8 @@ async function request(path, options = {}) {
 const api = {
     // Auth
     verifyToken: () => request('/api/auth/verify', { method: 'POST' }),
+    getProfile: () => request('/api/auth/profile'),
+    updateProfile: (data) => request('/api/auth/profile', { method: 'PATCH', body: JSON.stringify(data) }),
 
     // Channels
     discoverChannels: (filters) => request('/api/channels/discover', { method: 'POST', body: JSON.stringify(filters) }),
@@ -57,6 +67,7 @@ const api = {
     getCampaigns: (params = '') => request(`/api/campaigns?${params}`),
     getCampaign: (id) => request(`/api/campaigns/${id}`),
     updateCampaign: (id, data) => request(`/api/campaigns/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteCampaign: (id) => request(`/api/campaigns/${id}`, { method: 'DELETE' }),
 
     // Emails
     sendEmails: (data) => request('/api/emails/send', { method: 'POST', body: JSON.stringify(data) }),
@@ -68,6 +79,7 @@ const api = {
     // Sheets
     syncSheets: () => request('/api/sheets/sync', { method: 'POST' }),
     getSheetsStatus: () => request('/api/sheets/status'),
+    updateSheetSettings: (data) => request('/api/sheets/settings', { method: 'POST', body: JSON.stringify(data) }),
 
     // Settings
     getSmtpSettings: () => request('/api/settings/smtp'),

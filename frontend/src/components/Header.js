@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { Sun, Moon } from 'lucide-react';
+import Link from 'next/link';
 import styles from './Header.module.css';
 
 export default function Header({ title, user }) {
@@ -34,12 +35,16 @@ export default function Header({ title, user }) {
             <h1 className={styles.title}>{title || 'Dashboard'}</h1>
 
             <div className={styles.actions}>
-                <div className={styles.user}>
-                    <div className={styles.avatar}>
-                        {(user?.name || user?.email || 'U').charAt(0).toUpperCase()}
+                <Link href="/dashboard/profile" style={{ textDecoration: 'none' }}>
+                    <div className={styles.user} style={{ cursor: 'pointer', borderRadius: 'var(--radius-sm)', padding: '4px 8px', transition: 'background var(--transition-fast)' }}
+                         onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-card-hover)'}
+                         onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                        <div className={styles.avatar}>
+                            {(user?.name || user?.email || 'U').charAt(0).toUpperCase()}
+                        </div>
+                        <span className={styles.userName}>{user?.name || user?.email || 'User'}</span>
                     </div>
-                    <span className={styles.userName}>{user?.name || user?.email || 'User'}</span>
-                </div>
+                </Link>
                 
                 <button className={`btn btn-ghost ${styles.themeBtn}`} onClick={toggleTheme} aria-label="Toggle Theme" title="Toggle Light/Dark Theme">
                     {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}

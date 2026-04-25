@@ -128,4 +128,26 @@ router.patch('/:id', async (req, res, next) => {
     }
 });
 
+/**
+ * DELETE /api/campaigns/:id
+ * Delete a campaign.
+ */
+router.delete('/:id', async (req, res, next) => {
+    try {
+        const userSupabase = createAuthClient(req.user.token);
+        const { error } = await userSupabase
+            .from('campaigns')
+            .delete()
+            .eq('id', req.params.id)
+            .eq('user_id', req.user.id);
+
+        if (error) throw error;
+
+        logger.info('Campaign deleted', { campaignId: req.params.id, userId: req.user.id });
+        res.json({ success: true });
+    } catch (error) {
+        next(error);
+    }
+});
+
 export default router;

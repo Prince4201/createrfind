@@ -111,6 +111,9 @@ router.get('/', async (req, res, next) => {
         }
 
         // Apply remaining filters
+        if (req.query.search) {
+            query = query.or(`name.ilike.%${req.query.search}%,niche.ilike.%${req.query.search}%,email.ilike.%${req.query.search}%`);
+        }
         if (req.query.minSubscribers) {
             query = query.gte('subscribers', parseInt(req.query.minSubscribers));
         }
@@ -123,6 +126,12 @@ router.get('/', async (req, res, next) => {
         if (req.query.status) {
             const emailSent = req.query.status === 'Emailed';
             query = query.eq('email_sent', emailSent);
+        }
+        if (req.query.dateFrom) {
+            query = query.gte('last_fetched_at', req.query.dateFrom);
+        }
+        if (req.query.dateTo) {
+            query = query.lte('last_fetched_at', req.query.dateTo);
         }
 
         const { data: channels, count, error } = await query

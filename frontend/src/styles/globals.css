@@ -54,37 +54,40 @@
 
 /* ════════ Dark Mode (Default) ════════ */
 :root, :root[data-theme="dark"] {
-  --bg-primary: #09090F;
-  --bg-secondary: #0E0F1A;
-  --bg-card: rgba(16, 18, 35, 0.65);
-  --bg-card-solid: #101223;
-  --bg-card-hover: rgba(22, 25, 50, 0.8);
-  --bg-input: rgba(14, 16, 30, 0.8);
-  --bg-elevated: rgba(20, 22, 42, 0.75);
-  --border-color: rgba(255, 255, 255, 0.06);
-  --border-subtle: rgba(255, 255, 255, 0.03);
-  --border-active: rgba(124, 106, 255, 0.3);
+  --bg-primary: #0D1322;
+  --bg-secondary: #131A2B;
+  --bg-card: rgba(19, 26, 43, 0.65);
+  --bg-card-solid: #151D30;
+  --bg-card-hover: rgba(26, 35, 58, 0.85);
+  --bg-input: rgba(15, 21, 36, 0.9);
+  --bg-elevated: rgba(24, 33, 54, 0.85);
+  --border-color: rgba(255, 255, 255, 0.05);
+  --border-subtle: rgba(255, 255, 255, 0.02);
+  --border-active: rgba(124, 106, 255, 0.35);
 
-  --text-primary: #EEEEF4;
-  --text-secondary: #8B8DB0;
-  --text-muted: #52547A;
-  --text-inverse: #09090F;
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted: #475569;
+  --text-inverse: #0D1322;
 
-  --gradient-dark: linear-gradient(160deg, #12132A 0%, #09090F 100%);
-  --gradient-surface: linear-gradient(180deg, rgba(124, 106, 255, 0.05) 0%, transparent 100%);
-  --gradient-mesh: radial-gradient(ellipse at 20% 0%, rgba(124, 106, 255, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 100%, rgba(56, 189, 248, 0.06) 0%, transparent 50%);
-
-  --glass-bg: rgba(16, 18, 35, 0.55);
-  --glass-border: rgba(124, 106, 255, 0.08);
+  --gradient-dark: linear-gradient(160deg, #131A2B 0%, #0D1322 100%);
+  --gradient-surface: linear-gradient(180deg, rgba(124, 106, 255, 0.06) 0%, transparent 100%);
+  
+  /* Creating the tech-cross pattern seen in the screenshot */
+  --gradient-mesh: 
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    
+  --glass-bg: rgba(19, 26, 43, 0.6);
+  --glass-border: rgba(124, 106, 255, 0.1);
   --glass-blur: 24px;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
-  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 30px var(--brand-glow);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 30px rgba(124, 106, 255, 0.12);
   --shadow-brand: 0 4px 20px rgba(124, 106, 255, 0.25);
-  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 /* ════════ Light Mode ════════ */
@@ -107,8 +110,9 @@
 
   --gradient-dark: linear-gradient(160deg, #FFFFFF 0%, #F1F5F9 100%);
   --gradient-surface: linear-gradient(180deg, rgba(99, 102, 241, 0.04) 0%, transparent 100%);
-  --gradient-mesh: radial-gradient(ellipse at 20% 0%, rgba(99, 102, 241, 0.1) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 100%, rgba(14, 165, 233, 0.1) 0%, transparent 50%);
+  --gradient-mesh: 
+    linear-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
 
   --glass-bg: rgba(255, 255, 255, 0.7);
   --glass-border: rgba(99, 102, 241, 0.15);
@@ -138,6 +142,7 @@ body {
   line-height: 1.6;
   background: var(--bg-primary);
   background-image: var(--gradient-mesh);
+  background-size: 40px 40px; /* Size for the grid pattern */
   background-attachment: fixed;
   transition: background-color 0.4s ease, color 0.4s ease;
 }
@@ -197,6 +202,12 @@ select {
 .glass-panel:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg), var(--shadow-inset), var(--shadow-glow);
+}
+
+.quick-action-card:hover {
+  transform: translateX(4px);
+  border-color: var(--brand);
+  background: var(--bg-card-hover) !important;
 }
 
 /* ════════ Buttons ════════ */

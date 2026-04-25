@@ -15,14 +15,16 @@ export default function DashboardLayoutClient({ children }) {
     useEffect(() => {
         const supabase = createClient();
 
-        // Check initial session
-        supabase.auth.getUser().then(({ data: { user: u } }) => {
-            if (!u) {
+        // getSession reads from local cookie/storage (instant), no network call
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (!session?.user) {
                 router.push('/');
                 setLoading(false);
                 return;
             }
             
+            const u = session.user;
+
             // Ping backend to ensure user exists in public.users (resolves foreign key & admin errors)
             api.verifyToken().catch(err => console.error('Failed to verify token on backend:', err));
 

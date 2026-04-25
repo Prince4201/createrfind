@@ -98,28 +98,25 @@ export async function getApp() {
 
         const youtubeService = new YouTubeService(secrets.youtubeApiKey);
 
-        let sheetsService = null;
-        if (secrets.sheetsCredentials && process.env.GOOGLE_SHEET_ID) {
-            sheetsService = new SheetsService(
-                secrets.sheetsCredentials,
-                process.env.GOOGLE_SHEET_ID
-            );
+        let sheetsCredentials = null;
+        if (secrets.sheetsCredentials) {
+            sheetsCredentials = secrets.sheetsCredentials;
         }
 
-        const filterEngine = new FilterEngine(youtubeService, sheetsService);
+        const filterEngine = new FilterEngine(youtubeService, null);
         const emailService = new EmailService();
 
         // Attach services to app for route access
         app.set('youtubeService', youtubeService);
         app.set('filterEngine', filterEngine);
         app.set('emailService', emailService);
-        app.set('sheetsService', sheetsService);
+        app.set('sheetsCredentials', sheetsCredentials);
 
         logger.info('App ready', {
             env: process.env.NODE_ENV,
             services: {
                 youtube: !!secrets.youtubeApiKey,
-                sheets: !!sheetsService,
+                sheets: !!sheetsCredentials,
             },
         });
 

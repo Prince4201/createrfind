@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import ChannelTable from '@/components/ChannelTable';
+import { Search } from 'lucide-react';
 
 export default function ChannelsPage() {
     const [channels, setChannels] = useState([]);
@@ -10,9 +11,12 @@ export default function ChannelsPage() {
     const [loading, setLoading] = useState(true);
     const [filters, setFilters] = useState({
         status: 'all', // all | emailed | pending
+        search: '',
         minSubscribers: '',
         maxSubscribers: '',
-        minAvgViews: ''
+        minAvgViews: '',
+        dateFrom: '',
+        dateTo: ''
     });
 
     const updateFilter = (key, value) => {
@@ -23,11 +27,14 @@ export default function ChannelsPage() {
         setLoading(true);
         try {
             const params = new URLSearchParams({ page, limit: 20 });
-            if (filters.status === 'emailed') params.append('emailSent', 'true');
-            if (filters.status === 'pending') params.append('emailSent', 'false');
+            if (filters.status === 'emailed') params.append('status', 'Emailed');
+            if (filters.status === 'pending') params.append('status', 'Pending');
+            if (filters.search) params.append('search', filters.search);
             if (filters.minSubscribers) params.append('minSubscribers', filters.minSubscribers);
             if (filters.maxSubscribers) params.append('maxSubscribers', filters.maxSubscribers);
             if (filters.minAvgViews) params.append('minAvgViews', filters.minAvgViews);
+            if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+            if (filters.dateTo) params.append('dateTo', filters.dateTo);
 
             const res = await api.getChannels(params.toString());
             setChannels(res.data);
@@ -53,6 +60,19 @@ export default function ChannelsPage() {
             <p className="page-subtitle">
                 Browse and filter all discovered YouTube channels
             </p>
+
+            {/* Search bar */}
+            <div style={{ marginBottom: 16, position: 'relative' }}>
+                <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                <input
+                    type="text"
+                    placeholder="Search by channel name, keyword, or email..."
+                    className="input-field"
+                    style={{ paddingLeft: 40, marginBottom: 0, width: '100%', maxWidth: 480 }}
+                    value={filters.search}
+                    onChange={(e) => updateFilter('search', e.target.value)}
+                />
+            </div>
 
             <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap', alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -91,6 +111,22 @@ export default function ChannelsPage() {
                     style={{ width: 140, marginBottom: 0 }}
                     value={filters.minAvgViews}
                     onChange={(e) => updateFilter('minAvgViews', e.target.value)}
+                />
+                <input 
+                    type="date" 
+                    className="input-field" 
+                    style={{ width: 150, marginBottom: 0 }}
+                    value={filters.dateFrom}
+                    onChange={(e) => updateFilter('dateFrom', e.target.value)}
+                    title="From date"
+                />
+                <input 
+                    type="date" 
+                    className="input-field" 
+                    style={{ width: 150, marginBottom: 0 }}
+                    value={filters.dateTo}
+                    onChange={(e) => updateFilter('dateTo', e.target.value)}
+                    title="To date"
                 />
             </div>
 

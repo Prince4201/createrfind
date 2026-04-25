@@ -72,7 +72,7 @@ router.get('/history', validatePagination, async (req, res, next) => {
 
         const { data: history, count, error } = await supabase
             .from('email_logs')
-            .select('*', { count: 'exact' })
+            .select('*, campaigns(campaign_name)', { count: 'exact' })
             .eq('user_id', req.user.id)
             .order('sent_at', { ascending: false })
             .range(offset, offset + limit - 1);
