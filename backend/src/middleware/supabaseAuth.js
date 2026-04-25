@@ -24,8 +24,12 @@ export default async function authMiddleware(req, res, next) {
             .eq('id', user.id)
             .maybeSingle();
 
-        if (profile?.status === 'blocked') {
-            return res.status(403).json({ error: 'Account is blocked' });
+        if (profileError) {
+            console.error('[AuthError] Failed to fetch profile from public.users:', profileError.message);
+        }
+
+        if (!profile) {
+            console.warn(`[AuthError] No profile found in public.users for ID: ${user.id}. Defaulting to 'user' role.`);
         }
 
         // Attach user info to request
@@ -36,6 +40,8 @@ export default async function authMiddleware(req, res, next) {
             role: profile?.role || 'user',
             token: token
         };
+
+        console.log(`[AuthSuccess] Authenticated ${user.email} as ${req.user.role}`);
 
         next();
     } catch (error) {

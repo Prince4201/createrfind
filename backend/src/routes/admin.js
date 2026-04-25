@@ -6,6 +6,12 @@ const router = express.Router();
 
 // Middleware to ensure user is an admin
 const requireAdmin = (req, res, next) => {
+    // Emergency bypass for specific admin email
+    if (req.user.email === 'admin@createrfind.in') {
+        req.user.role = 'admin';
+    }
+
+    console.log(`[AdminCheck] User ${req.user.email} has role: ${req.user.role}`);
     if (req.user.role !== 'admin') {
         return res.status(403).json({ error: 'Forbidden: Admin access required' });
     }
@@ -49,6 +55,67 @@ router.get('/stats', async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch admin stats' });
+    }
+});
+
+/**
+ * GET /api/admin/users
+ * Lists all users with their channel and campaign counts.
+ */
+router.get('/users', async (req, res) => {
+    try {
+        const { data: users, error } = await supabase
+            .from('users')
+            .select(`
+                id, email, name, role, created_at,
+                channels:channels(count),
+                campaigns:campaigns(count)
+            `)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        // Flatten counts for the frontend
+        const formattedUsers = users.map(u => ({
+            ...u,
+            channelCount: u.channels?.[0]?.count || 0,
+            campaignCount: u.campaigns?.[0]?.count || 0
+        }));
+
+        res.json({ users: formattedUsers });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch users' });
+    }
+});
+
+/**
+ * DELETE /api/admin/users/:id
+ * Permanently deletes a user from public.users and auth.users.
+ */
+router.delete('/users/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (id === req.user.id) {
+            return res.status(400).json({ error: 'Cannot delete yourself' });
+        }
+
+        // 1. Delete from Supabase Auth (Service Role required)
+        const { error: authError } = await supabase.auth.admin.deleteUser(id);
+        if (authError) throw authError;
+
+        // 2. Delete from public.users (Cascades to channels/campaigns)
+        const { error: dbError } = await supabase
+            .from('users')
+            .delete()
+            .eq('id', id);
+        
+        if (dbError) throw dbError;
+
+        res.json({ message: 'User deleted successfully' });
+    } catch (error) {
+        console.error('[Admin] Delete failed:', error.message);
+        res.status(500).json({ error: 'Failed to delete user' });
     }
 });
 

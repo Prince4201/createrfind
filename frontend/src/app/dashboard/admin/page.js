@@ -6,23 +6,46 @@ import StatsCard from '@/components/StatsCard';
 
 export default function AdminPage() {
     const [stats, setStats] = useState(null);
+    const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const [statsRes, usersRes] = await Promise.all([
+                api.getAdminStats(),
+                api.getAdminUsers()
+            ]);
+            setStats(statsRes.stats);
+            setUsers(usersRes.users);
+        } catch (err) {
+            if (err.message.includes('403') || err.message.includes('Forbidden')) {
+                setError('Access denied. Admin privileges required.');
+            } else {
+                setError(err.message || 'Failed to load admin data');
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        api.getAdminStats()
-            .then((res) => setStats(res.stats))
-            .catch((err) => {
-                if (err.message.includes('403') || err.message.includes('Forbidden')) {
-                    setError('Access denied. Admin privileges required.');
-                } else {
-                    setError(err.message || 'Failed to load admin stats');
-                }
-            })
-            .finally(() => setLoading(false));
+        fetchData();
     }, []);
 
-    if (loading) {
+    const handleDeleteUser = async (id, email) => {
+        if (!confirm(`Are you sure you want to permanently delete user ${email}? This cannot be undone.`)) return;
+        
+        try {
+            await api.deleteAdminUser(id);
+            fetchData(); // Refresh
+        } catch (err) {
+            alert(err.message || 'Failed to delete user');
+        }
+    };
+
+    if (loading && !stats) {
         return (
             <div className="page-container">
                 <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -83,6 +106,69 @@ export default function AdminPage() {
                 />
             </div>
 
+            {/* User Management Section */}
+            <div style={{
+                marginTop: 24,
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius-lg)',
+                overflow: 'hidden'
+            }}>
+                <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-color)' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>User Management</h3>
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border-color)' }}>
+                                <th style={{ textAlign: 'left', padding: '12px 24px', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Name / Email</th>
+                                <th style={{ textAlign: 'center', padding: '12px 24px', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Role</th>
+                                <th style={{ textAlign: 'center', padding: '12px 24px', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Channels</th>
+                                <th style={{ textAlign: 'center', padding: '12px 24px', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Campaigns</th>
+                                <th style={{ textAlign: 'right', padding: '12px 24px', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {users.map(user => (
+                                <tr key={user.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                    <td style={{ padding: '16px 24px' }}>
+                                        <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{user.name || 'No Name'}</div>
+                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{user.email}</div>
+                                    </td>
+                                    <td style={{ padding: '16px 24px', textAlign: 'center' }}>
+                                        <span className={`badge ${user.role === 'admin' ? 'badge-success' : 'badge-info'}`}>
+                                            {user.role}
+                                        </span>
+                                    </td>
+                                    <td style={{ padding: '16px 24px', textAlign: 'center', fontWeight: 600 }}>{user.channelCount}</td>
+                                    <td style={{ padding: '16px 24px', textAlign: 'center', fontWeight: 600 }}>{user.campaignCount}</td>
+                                    <td style={{ padding: '16px 24px', textAlign: 'right' }}>
+                                        <button 
+                                            onClick={() => handleDeleteUser(user.id, user.email)}
+                                            style={{
+                                                padding: '6px 12px',
+                                                borderRadius: 'var(--radius-sm)',
+                                                background: 'rgba(255,107,107,0.1)',
+                                                color: '#ff6b6b',
+                                                border: '1px solid rgba(255,107,107,0.2)',
+                                                fontSize: '0.75rem',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s'
+                                            }}
+                                            onMouseOver={(e) => e.target.style.background = 'rgba(255,107,107,0.2)'}
+                                            onMouseOut={(e) => e.target.style.background = 'rgba(255,107,107,0.1)'}
+                                        >
+                                            Delete
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* System Status */}
             <div style={{
                 marginTop: 24,
                 background: 'var(--bg-card)',
@@ -91,7 +177,7 @@ export default function AdminPage() {
                 padding: 24,
             }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 16, color: 'var(--text-primary)' }}>
-                    System Status
+                    API Status
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                     <div style={{
@@ -100,36 +186,9 @@ export default function AdminPage() {
                         background: 'rgba(46,229,157,0.06)',
                         border: '1px solid rgba(46,229,157,0.1)',
                     }}>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 4 }}>YouTube API</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 4 }}>YouTube API Usage</div>
                         <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--accent-green)' }}>
                             {stats?.dailyYoutubeApiQuotaUsed || 0} / {stats?.quotaLimit || 10000} units
-                        </div>
-                        <div style={{
-                            marginTop: 8, height: 4, borderRadius: 2,
-                            background: 'rgba(255,255,255,0.06)',
-                            overflow: 'hidden',
-                        }}>
-                            <div style={{
-                                height: '100%',
-                                width: `${Math.min(((stats?.dailyYoutubeApiQuotaUsed || 0) / (stats?.quotaLimit || 10000)) * 100, 100)}%`,
-                                background: 'var(--accent-green)',
-                                borderRadius: 2,
-                                transition: 'width 0.5s ease',
-                            }} />
-                        </div>
-                    </div>
-                    <div style={{
-                        padding: '12px 16px',
-                        borderRadius: 'var(--radius-md)',
-                        background: 'rgba(91,154,255,0.06)',
-                        border: '1px solid rgba(91,154,255,0.1)',
-                    }}>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 4 }}>Database</div>
-                        <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#5B9AFF' }}>
-                            Supabase PostgreSQL
-                        </div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                            RLS Enabled • Service Role Active
                         </div>
                     </div>
                 </div>
