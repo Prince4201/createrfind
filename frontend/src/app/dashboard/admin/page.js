@@ -1,6 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
+import { Lock, Users, Tv, Rocket } from 'lucide-react';
 import api from '@/lib/api';
 import StatsCard from '@/components/StatsCard';
 
@@ -68,7 +69,7 @@ export default function AdminPage() {
                     color: '#ff6b6b',
                     fontSize: '0.9rem',
                 }}>
-                    🔒 {error}
+                    <Lock size={24} color="#ff6b6b" /> <span style={{ marginLeft: 8 }}>{error}</span>
                 </div>
             </div>
         );
@@ -83,19 +84,19 @@ export default function AdminPage() {
                 <StatsCard
                     label="Total Users"
                     value={stats?.totalUsers || 0}
-                    icon="👥"
+                    icon={<Users size={24} />}
                     gradient="brand"
                 />
                 <StatsCard
                     label="Total Channels"
                     value={stats?.totalChannels || 0}
-                    icon="📺"
+                    icon={<Tv size={24} />}
                     gradient="blue"
                 />
                 <StatsCard
                     label="Total Campaigns"
                     value={stats?.totalCampaigns || 0}
-                    icon="🚀"
+                    icon={<Rocket size={24} />}
                     gradient="green"
                 />
                 <StatsCard

@@ -1,4 +1,5 @@
 'use client';
+import { ExternalLink, Tv } from 'lucide-react';
 import styles from './ChannelTable.module.css';
 
 export default function ChannelTable({ channels = [], selectable = false, selected = [], onSelect }) {
@@ -17,7 +18,7 @@ export default function ChannelTable({ channels = [], selectable = false, select
     if (channels.length === 0) {
         return (
             <div className={styles.empty}>
-                <span className={styles.emptyIcon}>📺</span>
+                <span className={styles.emptyIcon}><Tv size={48} opacity={0.3} /></span>
                 <p>No channels found. Click Discover to fetch creators.</p>
             </div>
         );

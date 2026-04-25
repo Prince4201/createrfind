@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { Search } from 'lucide-react';
 import styles from './FilterForm.module.css';
 
 export default function FilterForm({ onSubmit, loading = false }) {
@@ -61,7 +62,7 @@ export default function FilterForm({ onSubmit, loading = false }) {
                         Discovering...
                     </>
                 ) : (
-                    <>🔍 Trigger Discovery</>
+                    <><Search size={16} /> Trigger Discovery</>
                 )}
             </button>
         </form>

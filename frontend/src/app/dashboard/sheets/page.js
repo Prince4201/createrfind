@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import StatsCard from '@/components/StatsCard';
+import { FileSpreadsheet, RefreshCw } from 'lucide-react';
 
 export default function SheetsPage() {
     const [status, setStatus] = useState(null);
@@ -61,7 +62,7 @@ export default function SheetsPage() {
                 <StatsCard
                     label="Rows in Sheet"
                     value={status?.rowCount || 0}
-                    icon="📄"
+                    icon={<FileSpreadsheet size={24} />}
                     gradient="blue"
                 />
             </div>
@@ -80,7 +81,7 @@ export default function SheetsPage() {
                     onClick={handleSync}
                     disabled={syncing || !status?.configured}
                 >
-                    {syncing ? 'Syncing...' : '🔄 Sync Now'}
+                    {syncing ? 'Syncing...' : <><RefreshCw size={16} /> Sync Now</>}
                 </button>
 
                 {!status?.configured && (

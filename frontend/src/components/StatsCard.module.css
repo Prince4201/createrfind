@@ -68,7 +68,10 @@
 
 .icon {
     font-size: 1.1rem;
-    filter: saturate(0) brightness(10);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .content {

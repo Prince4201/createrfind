@@ -1,6 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
+import { Lock, Plug } from 'lucide-react';
 import api from '@/lib/api';
 
 export default function SettingsPage() {
@@ -176,7 +177,7 @@ export default function SettingsPage() {
                             required={!hasExistingPassword}
                         />
                         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 6 }}>
-                            {hasExistingPassword && '🔒 Password is encrypted and stored securely. '}
+                            {hasExistingPassword && <><Lock size={14} /> Password is encrypted and stored securely. </>}
                             If using Gmail, generate an <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" style={{ color: 'var(--brand)', textDecoration: 'none' }}>App Password</a>.
                         </p>
                     </div>
@@ -201,7 +202,7 @@ export default function SettingsPage() {
                             disabled={testing || !hasExistingPassword}
                             onClick={handleTest}
                         >
-                            {testing ? 'Testing...' : '🔌 Test Connection'}
+                            {testing ? 'Testing...' : <><Plug size={16} /> Test Connection</>}
                         </button>
                         <button type="submit" className="btn btn-primary" disabled={saving}>
                             {saving ? 'Saving...' : 'Save Configuration'}

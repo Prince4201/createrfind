@@ -1,6 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
+import { Rocket } from 'lucide-react';
 import api from '@/lib/api';
 import styles from './page.module.css';
 
@@ -106,7 +107,7 @@ export default function CampaignsPage() {
                 </div>
             ) : campaigns.length === 0 ? (
                 <div className={styles.empty}>
-                    <span className={styles.emptyIcon}>🚀</span>
+                    <span className={styles.emptyIcon}><Rocket size={48} opacity={0.3} /></span>
                     <p>No campaigns yet. Create your first one!</p>
                 </div>
             ) : (

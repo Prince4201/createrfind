@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import StatsCard from '@/components/StatsCard';
 import { BarChartWidget, LineChartWidget } from '@/components/Chart';
+import { Tv, Mail, Rocket, Search } from 'lucide-react';
 
 export default function DashboardPage() {
     const [analytics, setAnalytics] = useState(null);
@@ -52,25 +53,25 @@ export default function DashboardPage() {
                 <StatsCard
                     label="Total Channels"
                     value={analytics?.totalChannels || 0}
-                    icon="📺"
+                    icon={<Tv size={24} />}
                     gradient="brand"
                 />
                 <StatsCard
                     label="Emails Sent"
                     value={analytics?.totalEmailsSent || 0}
-                    icon="📧"
+                    icon={<Mail size={24} />}
                     gradient="blue"
                 />
                 <StatsCard
                     label="Campaigns"
                     value={analytics?.totalCampaigns || 0}
-                    icon="🚀"
+                    icon={<Rocket size={24} />}
                     gradient="green"
                 />
                 <StatsCard
                     label="Discovery Runs"
                     value={analytics?.recentActivity?.filter(a => a.action === 'discovery').length || 0}
-                    icon="🔍"
+                    icon={<Search size={24} />}
                     gradient="orange"
                 />
             </div>

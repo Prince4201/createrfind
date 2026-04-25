@@ -3,15 +3,26 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import styles from './Sidebar.module.css';
 
+import { 
+    LayoutDashboard, 
+    Search, 
+    Tv, 
+    Mail, 
+    History, 
+    FileSpreadsheet, 
+    Settings, 
+    ShieldAlert 
+} from 'lucide-react';
+
 const nav = [
-    { href: '/dashboard', label: 'Overview', icon: '📊' },
-    { href: '/dashboard/discover', label: 'Discover', icon: '🔍' },
-    { href: '/dashboard/channels', label: 'Channels', icon: '📺' },
-    { href: '/dashboard/campaigns', label: 'Campaigns', icon: '📧' },
-    { href: '/dashboard/emails', label: 'Email History', icon: '📬' },
-    { href: '/dashboard/sheets', label: 'Sheet Sync', icon: '📄' },
-    { href: '/dashboard/settings', label: 'Email Settings', icon: '⚙️' },
-    { href: '/dashboard/admin', label: 'Admin', icon: '🛡️' },
+    { href: '/dashboard', label: 'Overview', icon: <LayoutDashboard size={18} /> },
+    { href: '/dashboard/discover', label: 'Discover', icon: <Search size={18} /> },
+    { href: '/dashboard/channels', label: 'Channels', icon: <Tv size={18} /> },
+    { href: '/dashboard/campaigns', label: 'Campaigns', icon: <Mail size={18} /> },
+    { href: '/dashboard/emails', label: 'Email History', icon: <History size={18} /> },
+    { href: '/dashboard/sheets', label: 'Sheet Sync', icon: <FileSpreadsheet size={18} /> },
+    { href: '/dashboard/settings', label: 'Email Settings', icon: <Settings size={18} /> },
+    { href: '/dashboard/admin', label: 'Admin', icon: <ShieldAlert size={18} /> },
 ];
 
 export default function Sidebar() {
@@ -20,7 +31,7 @@ export default function Sidebar() {
     return (
         <aside className={styles.sidebar}>
             <div className={styles.logo}>
-                <span className={styles.logoIcon}>▶</span>
+                <span className={styles.logoIcon}><Tv size={20} color="white" /></span>
                 <span className={styles.logoText}>CreatorFind</span>
             </div>
 

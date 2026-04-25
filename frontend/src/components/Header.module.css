@@ -6,7 +6,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 0 32px;
-    background: rgba(9, 9, 15, 0.75);
+    background: var(--glass-bg);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--border-subtle);
@@ -61,5 +61,29 @@
 
 .logoutBtn:hover {
     color: var(--text-secondary);
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--bg-card-hover);
+}
+
+.themeBtn {
+    font-size: 1.1rem;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    transition: transform var(--transition-spring), opacity var(--transition-fast);
+}
+
+.themeBtn:hover {
+    transform: scale(1.15) rotate(5deg);
+    opacity: 0.9;
+}
+
+@media (max-width: 768px) {
+    .header {
+        padding: 0 16px;
+    }
+    .userName {
+        display: none;
+    }
+    .actions {
+        gap: 6px;
+    }
 }
