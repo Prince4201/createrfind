@@ -95,18 +95,22 @@ router.get('/discover/status/:searchHistoryId', async (req, res, next) => {
  * List channels with pagination and optional filters.
  * Channels are globally shared — all authenticated users can read.
  */
-router.get('/', validatePagination, async (req, res, next) => {
+router.get('/', async (req, res, next) => {
     try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 20;
+        const { sessionId, page = 1, limit = 20 } = req.query;
         const offset = (page - 1) * limit;
 
         let query = supabase
             .from('channels')
             .select('*', { count: 'exact' })
-            .eq('is_discovered', true);
+            .eq('fetched_by_user_id', req.user.id);
 
-        // Optional filters
+        // If a specific sessionId is requested, filter by it. Otherwise, show everything.
+        if (sessionId) {
+            query = query.eq('search_history_id', sessionId);
+        }
+
+        // Apply remaining filters
         if (req.query.minSubscribers) {
             query = query.gte('subscribers', parseInt(req.query.minSubscribers));
         }
@@ -116,14 +120,9 @@ router.get('/', validatePagination, async (req, res, next) => {
         if (req.query.minAvgViews) {
             query = query.gte('avg_views', parseInt(req.query.minAvgViews));
         }
-        if (req.query.emailSent !== undefined) {
-            query = query.eq('email_sent', req.query.emailSent === 'true');
-        }
-        if (req.query.niche) {
-            query = query.eq('niche', req.query.niche);
-        }
-        if (req.query.search) {
-            query = query.ilike('name', `%${req.query.search}%`);
+        if (req.query.status) {
+            const emailSent = req.query.status === 'Emailed';
+            query = query.eq('email_sent', emailSent);
         }
 
         const { data: channels, count, error } = await query
@@ -134,12 +133,11 @@ router.get('/', validatePagination, async (req, res, next) => {
 
         res.json({
             data: channels,
-            pagination: {
-                page,
-                limit,
-                total: count || 0,
+            pagination: { 
+                total: count || 0, 
                 totalPages: Math.ceil((count || 0) / limit),
-            },
+                currentPage: parseInt(page)
+            }
         });
     } catch (error) {
         next(error);

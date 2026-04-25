@@ -7,24 +7,45 @@ export default class HybridFetchService {
     static async searchCreators(userId, query, filters = {}) {
         const { requestedCount = 30, niche } = filters;
 
-        // 1. Query Supabase for existing cached channels matching criteria
+        // 1. Create a search session record
+        const { data: session, error: sessionError } = await supabase
+            .from('search_history')
+            .insert({
+                user_id: userId,
+                query: query || niche,
+                niche: niche || query,
+                requested_count: requestedCount,
+                refresh_status: 'processing'
+            })
+            .select()
+            .single();
+
+        if (sessionError) throw sessionError;
+
+        // 2. Check for EXISTING data with this EXACT niche for this user (Cache check)
         const { data: cachedChannels, error: fetchError } = await supabase
             .from('channels')
             .select('*')
+            .eq('fetched_by_user_id', userId)
             .eq('niche', niche || query)
-            .eq('is_discovered', true)
             .limit(requestedCount);
         
         if (fetchError) throw fetchError;
 
         const foundCount = cachedChannels ? cachedChannels.length : 0;
-        const missingCount = requestedCount - foundCount;
+        
+        if (foundCount > 0) {
+            // Update cached channels to belong to the NEW session so they appear in "current fetch"
+            await supabase
+                .from('channels')
+                .update({ search_history_id: session.id })
+                .in('channel_id', cachedChannels.map(c => c.channel_id));
+        }
 
+        const missingCount = requestedCount - foundCount;
         let finalChannels = cachedChannels || [];
 
         if (missingCount > 0) {
-            console.log(`[HybridFetch] Insufficient data. Found ${foundCount}. Fetching ${missingCount} more synchronously.`);
-            
             try {
                 const { default: YouTubeService } = await import('./youtubeService.js');
                 const { default: FilterEngine } = await import('./filterEngine.js');
@@ -34,20 +55,29 @@ export default class HybridFetchService {
                 
                 const result = await engine.discover({
                     keyword: query || niche || 'youtube',
-                    maxChannels: missingCount
+                    maxChannels: missingCount,
+                    searchHistoryId: session.id // Link new data to this session
                 }, userId);
 
-                // Combine cached and new results
                 finalChannels = [...finalChannels, ...result.channels];
             } catch (err) {
-                console.error('[HybridFetch] Synchronous fetch failed:', err.message);
+                await supabase.from('search_history').update({ refresh_status: 'failed' }).eq('id', session.id);
                 throw err;
             }
         }
 
-        // Return final results immediately
+        // Update session as completed
+        await supabase
+            .from('search_history')
+            .update({ 
+                returned_count: finalChannels.length, 
+                refresh_status: 'completed' 
+            })
+            .eq('id', session.id);
+
         return {
             status: 'complete',
+            sessionId: session.id,
             returnedCount: finalChannels.length,
             channels: finalChannels
         };

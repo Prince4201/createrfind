@@ -104,8 +104,9 @@ class FilterEngine {
                             category: channel.category,
                             email,
                             niche: keyword,
-                            is_discovered: true, // Set to true immediately as this is now synchronous
+                            is_discovered: true,
                             fetched_by_user_id: userId,
+                            search_history_id: filters.searchHistoryId, // Link to session
                             last_fetched_at: new Date().toISOString(),
                         };
                     } catch (error) {
@@ -184,17 +185,6 @@ class FilterEngine {
             logger.error('Failed to save channels to Supabase', { error: error.message });
             throw error;
         }
-
-        // Log search activity to search_history
-        await supabase
-            .from('search_history')
-            .insert({
-                user_id: userId,
-                query: channels[0]?.niche || 'discovery',
-                niche: channels[0]?.niche,
-                returned_count: channels.length,
-                refresh_status: 'completed',
-            });
 
         logger.info(`Saved ${channels.length} channels to Supabase`);
     }

@@ -6,15 +6,17 @@ const IS_DEV = process.env.NODE_ENV === 'development';
 async function getHeaders() {
     const headers = { 'Content-Type': 'application/json' };
 
-    // Get Supabase auth token
     try {
         const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) {
+        
+        if (!session?.access_token) {
+            console.warn('[API] No active session found. Request may fail auth.');
+        } else {
             headers['Authorization'] = `Bearer ${session.access_token}`;
         }
-    } catch {
-        // Not authenticated
+    } catch (error) {
+        console.error('[API] Error fetching auth session:', error);
     }
     return headers;
 }
