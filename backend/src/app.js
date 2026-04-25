@@ -37,9 +37,35 @@ export async function getApp() {
         const app = express();
 
         // ------- Security -------
-        app.use(helmet());
-        app.use(cors()); // Allow all origins
+        app.use(helmet({
+            crossOriginResourcePolicy: { policy: "cross-origin" }
+        }));
+        
+        const allowedOrigins = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : ['http://localhost:3000', 'http://localhost:3001'];
+        app.use(cors({
+            origin: (origin, callback) => {
+                if (!origin || allowedOrigins.includes(origin)) {
+                    callback(null, true);
+                } else {
+                    callback(new Error('Not allowed by CORS'));
+                }
+            },
+            credentials: true,
+            methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+            allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+        }));
+
         app.use(express.json({ limit: '1mb' }));
+        
+        // Request logging middleware
+        app.use((req, res, next) => {
+            logger.info(`${req.method} ${req.url}`, {
+                origin: req.headers.origin,
+                userAgent: req.headers['user-agent']
+            });
+            next();
+        });
+
         app.use(generalLimiter);
 
         app.get("/", (req, res) => {

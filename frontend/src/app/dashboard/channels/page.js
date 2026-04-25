@@ -8,14 +8,26 @@ export default function ChannelsPage() {
     const [channels, setChannels] = useState([]);
     const [pagination, setPagination] = useState({ page: 1, totalPages: 1 });
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState('all'); // all | emailed | pending
+    const [filters, setFilters] = useState({
+        status: 'all', // all | emailed | pending
+        minSubscribers: '',
+        maxSubscribers: '',
+        minAvgViews: ''
+    });
+
+    const updateFilter = (key, value) => {
+        setFilters(prev => ({ ...prev, [key]: value }));
+    };
 
     const fetchChannels = async (page = 1) => {
         setLoading(true);
         try {
             const params = new URLSearchParams({ page, limit: 20 });
-            if (filter === 'emailed') params.append('emailSent', 'true');
-            if (filter === 'pending') params.append('emailSent', 'false');
+            if (filters.status === 'emailed') params.append('emailSent', 'true');
+            if (filters.status === 'pending') params.append('emailSent', 'false');
+            if (filters.minSubscribers) params.append('minSubscribers', filters.minSubscribers);
+            if (filters.maxSubscribers) params.append('maxSubscribers', filters.maxSubscribers);
+            if (filters.minAvgViews) params.append('minAvgViews', filters.minAvgViews);
 
             const res = await api.getChannels(params.toString());
             setChannels(res.data);
@@ -28,8 +40,12 @@ export default function ChannelsPage() {
     };
 
     useEffect(() => {
-        fetchChannels();
-    }, [filter]);
+        // Debounce fetching if needed, but for simplicity trigger on changes
+        const timer = setTimeout(() => {
+            fetchChannels();
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [filters]);
 
     return (
         <div className="page-container">
@@ -38,17 +54,44 @@ export default function ChannelsPage() {
                 Browse and filter all discovered YouTube channels
             </p>
 
-            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-                {['all', 'pending', 'emailed'].map((f) => (
-                    <button
-                        key={f}
-                        className={`btn ${filter === f ? 'btn-primary' : 'btn-secondary'}`}
-                        onClick={() => setFilter(f)}
-                        style={{ textTransform: 'capitalize', fontSize: '0.82rem', padding: '8px 16px' }}
-                    >
-                        {f === 'all' ? 'All Channels' : f === 'emailed' ? 'Emailed' : 'Pending'}
-                    </button>
-                ))}
+            <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    {['all', 'pending', 'emailed'].map((f) => (
+                        <button
+                            key={f}
+                            className={`btn ${filters.status === f ? 'btn-primary' : 'btn-secondary'}`}
+                            onClick={() => updateFilter('status', f)}
+                            style={{ textTransform: 'capitalize', fontSize: '0.82rem', padding: '8px 16px' }}
+                        >
+                            {f === 'all' ? 'All Channels' : f === 'emailed' ? 'Emailed' : 'Pending'}
+                        </button>
+                    ))}
+                </div>
+                
+                <input 
+                    type="number" 
+                    placeholder="Min Subscribers" 
+                    className="input-field" 
+                    style={{ width: 140, marginBottom: 0 }}
+                    value={filters.minSubscribers}
+                    onChange={(e) => updateFilter('minSubscribers', e.target.value)}
+                />
+                <input 
+                    type="number" 
+                    placeholder="Max Subscribers" 
+                    className="input-field" 
+                    style={{ width: 140, marginBottom: 0 }}
+                    value={filters.maxSubscribers}
+                    onChange={(e) => updateFilter('maxSubscribers', e.target.value)}
+                />
+                <input 
+                    type="number" 
+                    placeholder="Min Avg Views" 
+                    className="input-field" 
+                    style={{ width: 140, marginBottom: 0 }}
+                    value={filters.minAvgViews}
+                    onChange={(e) => updateFilter('minAvgViews', e.target.value)}
+                />
             </div>
 
             {loading ? (

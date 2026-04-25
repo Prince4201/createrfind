@@ -18,7 +18,7 @@ export default function ChannelTable({ channels = [], selectable = false, select
         return (
             <div className={styles.empty}>
                 <span className={styles.emptyIcon}>📺</span>
-                <p>No channels found</p>
+                <p>No channels found. Click Discover to fetch creators.</p>
             </div>
         );
     }
@@ -48,9 +48,18 @@ export default function ChannelTable({ channels = [], selectable = false, select
                 </thead>
                 <tbody>
                     {channels.map((ch, i) => (
-                        <tr key={ch.channel_id || ch.channelId || i} className={styles.row}>
+                        <tr 
+                            key={ch.channel_id || ch.channelId || i} 
+                            className={styles.row}
+                            onClick={(e) => {
+                                // Prevent navigating if clicking a checkbox
+                                if (e.target.type !== 'checkbox') {
+                                    window.open(ch.channel_url || ch.channelUrl, '_blank', 'noopener,noreferrer');
+                                }
+                            }}
+                        >
                             {selectable && (
-                                <td>
+                                <td onClick={(e) => e.stopPropagation()}>
                                     <input
                                         type="checkbox"
                                         checked={selected.includes(ch.channel_id || ch.channelId)}
@@ -61,14 +70,9 @@ export default function ChannelTable({ channels = [], selectable = false, select
                             )}
                             <td>
                                 <div className={styles.channelCell}>
-                                    <a
-                                        href={ch.channel_url || ch.channelUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className={styles.channelName}
-                                    >
+                                    <span className={styles.channelName}>
                                         {ch.name || ch.channelName}
-                                    </a>
+                                    </span>
                                 </div>
                             </td>
                             <td className={styles.number}>{(ch.subscribers || 0).toLocaleString()}</td>
@@ -77,8 +81,8 @@ export default function ChannelTable({ channels = [], selectable = false, select
                                 <span className={styles.email}>{ch.email || '—'}</span>
                             </td>
                             <td>
-                                <span className={`badge ${ch.email_sent || ch.emailSent ? 'badge-success' : 'badge-warning'}`}>
-                                    {ch.email_sent || ch.emailSent ? 'Sent' : 'Pending'}
+                                <span className={`badge ${ch.email_sent ? 'badge-success' : 'badge-warning'}`}>
+                                    {ch.email_sent ? 'Emailed' : 'Pending'}
                                 </span>
                             </td>
                             <td className={styles.date}>

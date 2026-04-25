@@ -62,21 +62,29 @@ router.get('/discover/status/:searchHistoryId', async (req, res, next) => {
             return res.status(404).json({ error: 'Search not found' });
         }
 
+        // If returned_count is null, it's still polling.
+        // If it's >= 0, it's completed. If it's -1, it failed.
+        let status = 'polling';
+        if (data.returned_count !== null) {
+            status = data.returned_count >= 0 ? 'completed' : 'failed';
+        }
+
         // If completed, also return the new channels
         let channels = [];
-        // Assuming completed since refresh_status column doesn't exist
-        const { data: ch } = await supabase
-            .from('channels')
-            .select('*')
-            .eq('niche', data.query)
-            .order('subscribers', { ascending: false })
-            .limit(data.requested_count || 50);
-        channels = ch || [];
+        if (status === 'completed') {
+            const { data: ch } = await supabase
+                .from('channels')
+                .select('*')
+                .eq('niche', data.query)
+                .order('subscribers', { ascending: false })
+                .limit(data.requested_count || 50);
+            channels = ch || [];
+        }
 
         res.json({
             data: {
-                status: data.refresh_status || 'completed',
-                returnedCount: data.returned_count,
+                status,
+                returnedCount: data.returned_count > 0 ? data.returned_count : 0,
                 cacheHitCount: data.cache_hit,
                 channels,
             },

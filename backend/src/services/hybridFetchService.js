@@ -69,13 +69,13 @@ export default class HybridFetchService {
 
                             await supabase
                                 .from('search_history')
-                                .update({ refresh_status: 'completed' })
+                                .update({ returned_count: missingCount })
                                 .eq('id', searchHistory.id);
                         } catch (err) {
                             console.error('[HybridFetch] Async fetch failed:', err.message);
                             await supabase
                                 .from('search_history')
-                                .update({ refresh_status: 'failed' })
+                                .update({ returned_count: -1 })
                                 .eq('id', searchHistory.id);
                         }
                     };

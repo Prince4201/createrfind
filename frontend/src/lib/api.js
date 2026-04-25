@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/client';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(/\/$/, '');
+const IS_DEV = process.env.NODE_ENV === 'development';
 
 async function getHeaders() {
     const headers = { 'Content-Type': 'application/json' };
@@ -20,7 +21,13 @@ async function getHeaders() {
 
 async function request(path, options = {}) {
     const headers = await getHeaders();
-    const res = await fetch(`${API_BASE}${path}`, {
+    const url = `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
+    
+    if (IS_DEV) {
+        console.log(`[API] Request: ${options.method || 'GET'} ${url}`);
+    }
+
+    const res = await fetch(url, {
         ...options,
         headers: { ...headers, ...options.headers },
     });

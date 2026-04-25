@@ -5,9 +5,6 @@ import styles from './FilterForm.module.css';
 export default function FilterForm({ onSubmit, loading = false }) {
     const [filters, setFilters] = useState({
         keyword: '',
-        minSubscribers: 1000,
-        maxSubscribers: 1000000,
-        minAvgViews: 500,
         maxChannels: 30,
     });
 
@@ -30,39 +27,6 @@ export default function FilterForm({ onSubmit, loading = false }) {
                         value={filters.keyword}
                         onChange={(e) => update('keyword', e.target.value)}
                         required
-                    />
-                </div>
-
-                <div className={styles.field}>
-                    <label className={styles.label}>Min Subscribers</label>
-                    <input
-                        type="number"
-                        className="input-field"
-                        min="0"
-                        value={filters.minSubscribers}
-                        onChange={(e) => update('minSubscribers', parseInt(e.target.value) || 0)}
-                    />
-                </div>
-
-                <div className={styles.field}>
-                    <label className={styles.label}>Max Subscribers</label>
-                    <input
-                        type="number"
-                        className="input-field"
-                        min="1"
-                        value={filters.maxSubscribers}
-                        onChange={(e) => update('maxSubscribers', parseInt(e.target.value) || 1)}
-                    />
-                </div>
-
-                <div className={styles.field}>
-                    <label className={styles.label}>Min Average Views</label>
-                    <input
-                        type="number"
-                        className="input-field"
-                        min="0"
-                        value={filters.minAvgViews}
-                        onChange={(e) => update('minAvgViews', parseInt(e.target.value) || 0)}
                     />
                 </div>
 
