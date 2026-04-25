@@ -104,7 +104,7 @@ class FilterEngine {
                             category: channel.category,
                             email,
                             niche: keyword,
-                            is_discovered: false, // Initially hidden until fetch is complete
+                            is_discovered: true, // Set to true immediately as this is now synchronous
                             fetched_by_user_id: userId,
                             last_fetched_at: new Date().toISOString(),
                         };
@@ -137,12 +137,6 @@ class FilterEngine {
         // 3. Save to Supabase
         if (validChannels.length > 0) {
             await this._saveToSupabase(validChannels, userId);
-
-            // 4. Update is_discovered to true for this batch/niche
-            await supabase
-                .from('channels')
-                .update({ is_discovered: true })
-                .eq('niche', keyword);
 
             // 5. Append to Google Sheet
             if (this.sheets) {
