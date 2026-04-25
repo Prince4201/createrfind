@@ -4,9 +4,23 @@ import logger from '../config/logger.js';
 const EMAIL_REGEX = /[\w.+-]+@[\w-]+\.[\w.-]+/gi;
 
 class YouTubeService {
-    constructor(apiKey) {
+    constructor(apiKeys) {
+        // apiKeys can be a single string or a comma-separated list
+        this.apiKeys = typeof apiKeys === 'string' ? apiKeys.split(',').map(k => k.trim()) : apiKeys;
+        this.currentKeyIndex = 0;
+        this._updateClient();
+    }
+
+    _updateClient() {
+        const apiKey = this.apiKeys[this.currentKeyIndex];
         this.youtube = google.youtube({ version: 'v3', auth: apiKey });
         this.apiKey = apiKey;
+        logger.info(`YouTube API key rotated to index ${this.currentKeyIndex}`);
+    }
+
+    _rotateKey() {
+        this.currentKeyIndex = (this.currentKeyIndex + 1) % this.apiKeys.length;
+        this._updateClient();
     }
 
     /* ---------- search.list — find channels by keyword ---------- */
@@ -145,18 +159,28 @@ class YouTubeService {
             } catch (error) {
                 const status = error?.response?.status || error?.code;
 
-                // Quota exceeded — stop immediately
-                if (status === 403) {
-                    logger.error('YouTube API quota exceeded', {
-                        message: error.message,
-                    });
-                    const quotaError = new Error('YouTube API quota exceeded');
-                    quotaError.statusCode = 429;
-                    throw quotaError;
+                // Quota exceeded — rotate and retry if possible
+                if (status === 403 || status === 429) {
+                    if (this.apiKeys.length > 1) {
+                        logger.warn('YouTube API quota exceeded. Rotating key...', {
+                            message: error.message,
+                        });
+                        this._rotateKey();
+                        // Reset attempt counter for the new key? 
+                        // Let's just continue the loop, it will retry with the new key in the next iteration.
+                        continue; 
+                    } else {
+                        logger.error('YouTube API quota exceeded (no more keys to rotate)', {
+                            message: error.message,
+                        });
+                        const quotaError = new Error('YouTube API quota exceeded');
+                        quotaError.statusCode = 429;
+                        throw quotaError;
+                    }
                 }
 
                 // Retryable errors
-                if (attempt < retries && (status === 429 || status >= 500)) {
+                if (attempt < retries && status >= 500) {
                     const delay = Math.pow(2, attempt) * 1000 + Math.random() * 500;
                     logger.warn(`YouTube API retry ${attempt}/${retries}`, { delay, status });
                     await new Promise((r) => setTimeout(r, delay));

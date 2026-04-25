@@ -84,22 +84,13 @@ class FilterEngine {
                         if (!details.length) return null;
                         const channel = details[0];
 
-                        // Filter 1: Subscriber range
-                        if (channel.subscribers < minSubscribers || channel.subscribers > maxSubscribers) {
-                            return null;
-                        }
-
-                        // Filter 2: Average views
-                        const avgViews = await this.yt.calculateAvgViews(ch.channelId);
-                        if (avgViews < minAvgViews) return null;
-
-                        // Filter 3: Keyword relevance
+                        // Filter 1: Keyword relevance
                         const keywordLower = keyword.toLowerCase();
                         const nameMatch = channel.channelName.toLowerCase().includes(keywordLower);
                         const descMatch = channel.description.toLowerCase().includes(keywordLower);
                         if (!nameMatch && !descMatch) return null;
 
-                        // Filter 4: Email present
+                        // Filter 2: Email present
                         const email = this.yt.extractEmail(channel.description);
                         if (!email) return null;
 
@@ -109,10 +100,11 @@ class FilterEngine {
                             channel_url: channel.channelUrl,
                             description: channel.description,
                             subscribers: channel.subscribers,
-                            avg_views: avgViews,
+                            avg_views: 0, // Optimized: do not calculate avg views initially to save quota
                             category: channel.category,
                             email,
                             niche: keyword,
+                            is_discovered: false, // Initially hidden until fetch is complete
                             fetched_by_user_id: userId,
                             last_fetched_at: new Date().toISOString(),
                         };
@@ -146,7 +138,13 @@ class FilterEngine {
         if (validChannels.length > 0) {
             await this._saveToSupabase(validChannels, userId);
 
-            // 4. Append to Google Sheet
+            // 4. Update is_discovered to true for this batch/niche
+            await supabase
+                .from('channels')
+                .update({ is_discovered: true })
+                .eq('niche', keyword);
+
+            // 5. Append to Google Sheet
             if (this.sheets) {
                 try {
                     // Map to the format sheetsService expects

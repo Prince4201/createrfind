@@ -139,6 +139,12 @@ class EmailService {
                 sent++;
                 logger.info(`Email sent to ${toEmail}`, { channelId: channel.channel_id });
 
+                // Update channel email_sent status in DB
+                await supabase
+                    .from('channels')
+                    .update({ email_sent: true })
+                    .eq('channel_id', channel.channel_id);
+
                 // Add 7 second delay between emails to prevent blocking
                 await new Promise((resolve) => setTimeout(resolve, 7000));
             } catch (error) {

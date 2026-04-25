@@ -23,69 +23,78 @@ export default class HybridFetchService {
         if (historyError) throw historyError;
 
         // 2. Query Supabase for existing cached channels matching criteria
-        let dbQuery = supabase
+        const { data: cachedChannels, error: fetchError } = await supabase
             .from('channels')
             .select('*')
-            .gte('subscribers', minSubscribers)
+            .eq('niche', niche || query)
+            .eq('is_discovered', true)
             .limit(requestedCount);
-
-        if (niche) dbQuery = dbQuery.eq('niche', niche);
-        if (query) dbQuery = dbQuery.ilike('niche', `%${query}%`);
-
-        const { data: cachedChannels, error: fetchError } = await dbQuery;
         
         if (fetchError) throw fetchError;
 
         const foundCount = cachedChannels ? cachedChannels.length : 0;
         const missingCount = requestedCount - foundCount;
 
-        // 3. Evaluate freshness & quantity
-        // If we have enough data and it's not stale (not implemented detailed stale logic here for brevity, 
-        // but would check last_fetched_at > 7 days ago)
-        
         if (missingCount > 0) {
             // We need more data from YouTube API. Queue the background job.
             console.log(`[HybridFetch] Insufficient data. Found ${foundCount}. Queuing job for ${missingCount} more.`);
             
-            // Bypass Redis and execute the fetch asynchronously in memory for local reliability
-            import('./youtubeService.js').then(({ default: YouTubeService }) => {
-                import('./filterEngine.js').then(({ default: FilterEngine }) => {
-                    const runFetch = async () => {
-                        try {
-                            if (!process.env.YOUTUBE_API_KEY) {
-                                throw new Error('YOUTUBE_API_KEY is missing in backend/.env');
-                            }
-                            
-                            const ytService = new YouTubeService(process.env.YOUTUBE_API_KEY);
-                            const engine = new FilterEngine(ytService, null);
-                            
-                            await engine.discover({
-                                keyword: query || niche || 'youtube',
-                                minSubscribers: minSubscribers || 0,
-                                maxSubscribers: 100000000, // Default max
-                                minAvgViews: 0, // Default min
-                                maxChannels: missingCount
-                            }, userId);
-
-                            await supabase
-                                .from('search_history')
-                                .update({ returned_count: missingCount })
-                                .eq('id', searchHistory.id);
-                        } catch (err) {
-                            console.error('[HybridFetch] Async fetch failed:', err.message);
-                            await supabase
-                                .from('search_history')
-                                .update({ returned_count: -1 })
-                                .eq('id', searchHistory.id);
-                        }
-                    };
-                    runFetch(); // Run asynchronously
+            try {
+                await youtubeFetchQueue.add('discover-channels', {
+                    userId,
+                    searchHistoryId: searchHistory.id,
+                    filters: {
+                        keyword: query || niche || 'youtube',
+                        maxChannels: missingCount
+                    }
+                }, {
+                    removeOnComplete: true,
+                    removeOnFail: false,
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 5000
+                    }
                 });
-            });
+            } catch (queueError) {
+                console.warn('[HybridFetch] Redis/Queue unavailable. Falling back to in-memory async fetch.', queueError.message);
+                
+                // FALLBACK: In-memory async fetch
+                (async () => {
+                    try {
+                        const { default: YouTubeService } = await import('./youtubeService.js');
+                        const { default: FilterEngine } = await import('./filterEngine.js');
+                        const ytService = new YouTubeService(process.env.YOUTUBE_API_KEY);
+                        const engine = new FilterEngine(ytService, null);
+                        await engine.discover({
+                            keyword: query || niche || 'youtube',
+                            maxChannels: missingCount
+                        }, userId);
+                        
+                        await supabase
+                            .from('search_history')
+                            .update({ returned_count: missingCount, refresh_status: 'completed' })
+                            .eq('id', searchHistory.id);
+                    } catch (err) {
+                        console.error('[HybridFetch] Fallback fetch failed:', err.message);
+                        await supabase
+                            .from('search_history')
+                            .update({ returned_count: -1, refresh_status: 'failed' })
+                            .eq('id', searchHistory.id);
+                    }
+                })();
+            }
+
+            // Mark history as polling
+            await supabase
+                .from('search_history')
+                .update({ cache_hit: foundCount, returned_count: null })
+                .eq('id', searchHistory.id);
+        } else {
             // We have enough data, mark history as completed
             await supabase
                 .from('search_history')
-                .update({ cache_hit: foundCount })
+                .update({ cache_hit: foundCount, returned_count: foundCount })
                 .eq('id', searchHistory.id);
         }
 

@@ -15,21 +15,6 @@ const validateDiscoverFilters = [
         .withMessage('Keyword is required')
         .isLength({ max: 200 })
         .withMessage('Keyword must be under 200 characters'),
-    body('minSubscribers')
-        .isInt({ min: 0 })
-        .withMessage('minSubscribers must be a non-negative integer'),
-    body('maxSubscribers')
-        .isInt({ min: 1 })
-        .withMessage('maxSubscribers must be a positive integer')
-        .custom((value, { req }) => {
-            if (parseInt(value) <= parseInt(req.body.minSubscribers)) {
-                throw new Error('maxSubscribers must be greater than minSubscribers');
-            }
-            return true;
-        }),
-    body('minAvgViews')
-        .isInt({ min: 0 })
-        .withMessage('minAvgViews must be a non-negative integer'),
     body('maxChannels')
         .isInt({ min: 1, max: 50 })
         .withMessage('maxChannels must be between 1 and 50'),

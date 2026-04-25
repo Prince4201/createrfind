@@ -16,17 +16,13 @@ router.post('/discover', triggerLimiter, validateDiscoverFilters, async (req, re
     try {
         const filters = {
             keyword: req.body.keyword,
-            minSubscribers: parseInt(req.body.minSubscribers),
-            maxSubscribers: parseInt(req.body.maxSubscribers),
-            minAvgViews: parseInt(req.body.minAvgViews),
-            maxChannels: Math.min(parseInt(req.body.maxChannels), 50),
+            maxChannels: Math.min(parseInt(req.body.maxChannels) || 30, 50),
         };
 
         logger.info('Discovery triggered', { filters, userId: req.user.id });
 
         // Use hybrid fetch: returns cached results immediately, queues background API fetch if needed
         const result = await HybridFetchService.searchCreators(req.user.id, filters.keyword, {
-            minSubscribers: filters.minSubscribers,
             requestedCount: filters.maxChannels,
             niche: filters.keyword,
         });
@@ -107,17 +103,24 @@ router.get('/', validatePagination, async (req, res, next) => {
 
         let query = supabase
             .from('channels')
-            .select('*', { count: 'exact' });
+            .select('*', { count: 'exact' })
+            .eq('is_discovered', true);
 
         // Optional filters
         if (req.query.minSubscribers) {
             query = query.gte('subscribers', parseInt(req.query.minSubscribers));
         }
+        if (req.query.maxSubscribers) {
+            query = query.lte('subscribers', parseInt(req.query.maxSubscribers));
+        }
+        if (req.query.minAvgViews) {
+            query = query.gte('avg_views', parseInt(req.query.minAvgViews));
+        }
+        if (req.query.emailSent !== undefined) {
+            query = query.eq('email_sent', req.query.emailSent === 'true');
+        }
         if (req.query.niche) {
             query = query.eq('niche', req.query.niche);
-        }
-        if (req.query.hasEmail === 'true') {
-            query = query.not('email', 'is', null);
         }
         if (req.query.search) {
             query = query.ilike('name', `%${req.query.search}%`);
