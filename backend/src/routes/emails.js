@@ -26,14 +26,17 @@ router.post('/send', validateSendEmails, async (req, res, next) => {
             return res.status(404).json({ error: 'Campaign not found' });
         }
 
-        // Fetch channels with emails
+        // Fetch channels by YouTube ID
         const { data: channels, error: chErr } = await supabase
             .from('channels')
             .select('*')
             .in('channel_id', channelIds.slice(0, 50))
             .not('email', 'is', null);
 
-        if (chErr) throw chErr;
+        if (chErr) {
+            console.error('[Emails] DB search failed:', chErr.message);
+            throw chErr;
+        }
 
         if (!channels || channels.length === 0) {
             return res.status(400).json({ error: 'No valid channels with emails found' });
@@ -69,12 +72,17 @@ router.get('/history', validatePagination, async (req, res, next) => {
 
         const { data: history, count, error } = await supabase
             .from('email_logs')
-            .select('*, campaigns(campaign_name)', { count: 'exact' })
+            .select('*', { count: 'exact' })
             .eq('user_id', req.user.id)
-            .order('sent_at', { ascending: false, nullsFirst: false })
+            .order('sent_at', { ascending: false })
             .range(offset, offset + limit - 1);
 
-        if (error) throw error;
+        if (error) {
+            console.error('[HistoryFetch] Error:', error.message);
+            throw error;
+        }
+
+        console.log(`[HistoryFetch] Found ${history?.length || 0} logs for user ${req.user.id}`);
 
         res.json({
             data: history,

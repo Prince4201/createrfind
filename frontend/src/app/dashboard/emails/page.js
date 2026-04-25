@@ -61,7 +61,7 @@ export default function EmailsPage() {
     };
 
     const selectAll = () => {
-        setSelectedChannels(channels.map((ch) => ch.channelId || ch.id));
+        setSelectedChannels(channels.map((ch) => ch.id || ch.channel_id || ch.channelId));
     };
 
     const deselectAll = () => {
@@ -161,8 +161,8 @@ export default function EmailsPage() {
                             borderRadius: 'var(--radius-md)', padding: 4,
                             background: 'rgba(0,0,0,0.15)',
                         }}>
-                            {channels.map((ch) => {
-                                const chId = ch.channelId || ch.id;
+                            {channels.map((ch, index) => {
+                                const chId = ch.id || ch.channel_id || ch.channelId || `ch-${index}`;
                                 const isSelected = selectedChannels.includes(chId);
                                 return (
                                     <label key={chId} style={{
@@ -264,7 +264,7 @@ export default function EmailsPage() {
                                         {h.campaigns?.campaign_name || '—'}
                                     </td>
                                     <td style={{ fontWeight: 500 }}>{h.channel_id || h.channelId || '—'}</td>
-                                    <td>{h.email || '—'}</td>
+                                    <td>{h.email || h.to_email || '—'}</td>
                                     <td style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.subject || '—'}</td>
                                     <td>
                                         <span className={`badge ${h.status === 'Sent' ? 'badge-success' : 'badge-danger'}`}>

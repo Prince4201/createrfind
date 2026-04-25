@@ -111,23 +111,27 @@ class EmailService {
                     html: personalizedBody,
                 });
 
-                // Log to email_logs
+                // Log to email_logs (Simplified to find root cause)
+                const logData = {
+                    campaign_id: campaignId,
+                    channel_id: channel.channel_id,
+                    user_id: userId,
+                    to_email: toEmail,
+                    subject: personalizedSubject,
+                    status: 'sent',
+                    sent_at: new Date().toISOString(),
+                };
+
                 const { error: logError } = await supabase
                     .from('email_logs')
-                    .insert({
-                        campaign_id: campaignId,
-                        channel_id: channel.channel_id,
-                        user_id: userId,
-                        to_email: toEmail,
-                        subject: personalizedSubject,
-                        status: 'sent',
-                        sent_at: new Date().toISOString(),
-                    });
+                    .insert(logData);
 
-                if (logError && logError.code === '23505') {
-                    // Unique constraint: already sent to this channel in this campaign
-                    skipped++;
-                    continue;
+                if (logError) {
+                    console.error('[CRITICAL_DEBUG] Failed to log successful email:', {
+                        error: logError.message,
+                        code: logError.code,
+                        dataAttempted: logData
+                    });
                 }
 
                 // Update campaign counters
@@ -154,19 +158,28 @@ class EmailService {
                     channelId: channel.channel_id,
                 });
 
-                // Log failure
-                await supabase
+                // Log failure (Simplified)
+                const failData = {
+                    campaign_id: campaignId,
+                    channel_id: channel.channel_id,
+                    user_id: userId,
+                    to_email: channel.email,
+                    subject: campaign.subject,
+                    status: 'failed',
+                    error_message: error.message,
+                };
+
+                const { error: logErr } = await supabase
                     .from('email_logs')
-                    .insert({
-                        campaign_id: campaignId,
-                        channel_id: channel.channel_id,
-                        user_id: userId,
-                        to_email: channel.email,
-                        subject: campaign.subject,
-                        status: 'failed',
-                        error_message: error.message,
-                    })
-                    .catch(() => {}); // Ignore if duplicate
+                    .insert(failData);
+                
+                if (logErr) {
+                    console.error('[CRITICAL_DEBUG] Failed to log email failure:', {
+                        error: logErr.message,
+                        code: logErr.code,
+                        dataAttempted: failData
+                    });
+                }
             }
         }
 
