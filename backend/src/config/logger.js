@@ -3,12 +3,18 @@ import winston from 'winston';
 let cloudTransport = null;
 
 async function initCloudLogging() {
-    if (process.env.NODE_ENV === 'production') {
+    // Only attempt to use Cloud Logging if we explicitly have a Project ID set
+    if (process.env.NODE_ENV === 'production' && process.env.GOOGLE_CLOUD_PROJECT) {
         try {
             const { LoggingWinston } = await import('@google-cloud/logging-winston');
             cloudTransport = new LoggingWinston({
                 projectId: process.env.GOOGLE_CLOUD_PROJECT,
                 logName: 'youtube-creator-discovery',
+            });
+            
+            // Catch background transport errors so they don't crash the Node process
+            cloudTransport.on('error', (err) => {
+                console.warn('[Logger] Cloud Logging background error:', err.message);
             });
         } catch {
             // Cloud Logging not available — will use console only

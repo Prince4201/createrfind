@@ -41,33 +41,23 @@ export async function getApp() {
             crossOriginResourcePolicy: { policy: "cross-origin" }
         }));
 
-        const allowedOrigins = [
-            'http://localhost:3000', 
-            'http://localhost:3001', 
-            'https://createrfind.vercel.app'
-        ];
-        if (process.env.FRONTEND_URL) {
-            allowedOrigins.push(...process.env.FRONTEND_URL.split(','));
-        }
-        
-        // Safe, array-based CORS - no Error throwing that strips headers
-        const corsOptions = {
+        app.use(cors({
             origin: function (origin, callback) {
-                // Allow all origins that match vercel.app for preview deployments, plus exact matches
-                if (!origin || allowedOrigins.includes(origin) || origin.endsWith('vercel.app')) {
+                const allowed = [
+                    "http://localhost:3000",
+                    "https://createrfind.vercel.app"
+                ];
+
+                if (!origin || allowed.includes(origin)) {
                     callback(null, true);
                 } else {
-                    // Failing gracefully without throwing an error that breaks Express preflight
-                    callback(null, false);
+                    callback(new Error("CORS not allowed"));
                 }
             },
-            credentials: true,
-            methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-            allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
-        };
+            credentials: true
+        }));
 
-        app.use(cors(corsOptions));
-        app.options('*', cors(corsOptions)); // Force preflight for all routes
+        app.options("*", cors());
 
         app.use(express.json({ limit: '1mb' }));
 
