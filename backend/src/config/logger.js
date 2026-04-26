@@ -3,8 +3,8 @@ import winston from 'winston';
 let cloudTransport = null;
 
 async function initCloudLogging() {
-    // Only attempt to use Cloud Logging if we explicitly have a Project ID set
-    if (process.env.NODE_ENV === 'production' && process.env.GOOGLE_CLOUD_PROJECT) {
+    // Only attempt to use Cloud Logging if we explicitly have a Project ID set and credentials
+    if (process.env.NODE_ENV === 'production' && process.env.GOOGLE_CLOUD_PROJECT && process.env.GOOGLE_APPLICATION_CREDENTIALS) {
         try {
             const { LoggingWinston } = await import('@google-cloud/logging-winston');
             cloudTransport = new LoggingWinston({
@@ -40,10 +40,17 @@ function createLogger() {
         transports.push(cloudTransport);
     }
 
-    return winston.createLogger({
+    const logger = winston.createLogger({
         level: process.env.LOG_LEVEL || 'info',
         transports,
     });
+
+    // Catch errors emitted on the logger instance itself to prevent unhandled rejections
+    logger.on('error', (err) => {
+        console.warn('[Logger] Winston error:', err.message);
+    });
+
+    return logger;
 }
 
 await initCloudLogging();
