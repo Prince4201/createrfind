@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/client';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(/\/$/, '');
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'https://createrfind-backend.onrender.com').replace(/\/$/, '');
 const IS_DEV = process.env.NODE_ENV === 'development';
 
 // Cache supabase client singleton — avoids re-creating on every API call
@@ -22,7 +22,7 @@ async function getHeaders() {
             console.warn('[API] No active session found. Request may fail auth.');
         } else {
             headers['Authorization'] = `Bearer ${session.access_token}`;
-            console.log(`[Frontend Debug] Attached JWT Token for user: ${session.user?.id}`);
+            console.log("TOKEN:", session.access_token.substring(0, 20) + "..."); // Truncated for security
         }
     } catch (error) {
         console.error('[API] Error fetching auth session:', error);
@@ -34,21 +34,37 @@ async function request(path, options = {}) {
     const headers = await getHeaders();
     const url = `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
     
+    console.log("API URL:", API_BASE);
+    
     if (IS_DEV) {
         console.log(`[API] Request: ${options.method || 'GET'} ${url}`);
     }
 
-    const res = await fetch(url, {
-        ...options,
-        headers: { ...headers, ...options.headers },
-    });
+    try {
+        const res = await fetch(url, {
+            ...options,
+            headers: { ...headers, ...options.headers },
+        });
 
-    if (!res.ok) {
-        const error = await res.json().catch(() => ({ error: 'Request failed' }));
-        throw new Error(error.error || `HTTP ${res.status}`);
+        if (!res.ok) {
+            let errorMsg = `HTTP ${res.status}`;
+            if (res.status === 401) errorMsg = '401 Unauthorized';
+            
+            try {
+                const errorData = await res.json();
+                errorMsg = errorData.error || errorMsg;
+            } catch (e) {
+                // Ignore json parse error
+            }
+            throw new Error(errorMsg);
+        }
+
+        return await res.json();
+    } catch (error) {
+        // Catch CORS or Network errors
+        console.error(`[Fetch Error] on ${url}:`, error.message);
+        throw error;
     }
-
-    return res.json();
 }
 
 const api = {
