@@ -78,6 +78,7 @@ export async function getApp() {
         });
 
 
+        // ------- API Root (Status) -------
         app.get('/api', (req, res) => {
             res.json({
                 status: "OK",
@@ -85,7 +86,12 @@ export async function getApp() {
                 endpoints: {
                     auth: "/api/auth",
                     channels: "/api/channels",
-                    campaigns: "/api/campaigns"
+                    campaigns: "/api/campaigns",
+                    emails: "/api/emails",
+                    dashboardStats: "/api/dashboard-stats",
+                    sheets: "/api/sheets",
+                    settings: "/api/settings",
+                    admin: "/api/admin"
                 }
             });
         });
