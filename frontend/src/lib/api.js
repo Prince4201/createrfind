@@ -107,6 +107,9 @@ const api = {
     getAdminStats: () => request('/api/admin/stats'),
     getAdminUsers: () => request('/api/admin/users'),
     deleteAdminUser: (id) => request(`/api/admin/users/${id}`, { method: 'DELETE' }),
+
+    // Utilities
+    pingServer: () => fetch(`${API_BASE}/api/health`).catch(() => {}),
 };
 
 export default api;

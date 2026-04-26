@@ -1,6 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useCallback } from 'react';
+import api from '@/lib/api';
 import styles from './landing.module.css';
 
 export default function LandingPage() {
@@ -12,6 +13,11 @@ export default function LandingPage() {
   const [scrollY, setScrollY] = useState(0);
   const [previewMouse, setPreviewMouse] = useState({ x: 0, y: 0 });
   const [hoveringPreview, setHoveringPreview] = useState(false);
+
+  // Ping backend to wake it up from sleep (Render free tier cold start fix)
+  useEffect(() => {
+    api.pingServer();
+  }, []);
 
   // Scroll tracking
   useEffect(() => {

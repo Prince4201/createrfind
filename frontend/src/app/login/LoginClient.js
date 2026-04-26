@@ -1,7 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
+import api from '@/lib/api';
 import styles from './login.module.css';
 
 export default function LoginClient() {
@@ -13,6 +14,11 @@ export default function LoginClient() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
+
+  // Ping backend to wake it up from sleep (Render free tier cold start fix)
+  useEffect(() => {
+    api.pingServer();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
