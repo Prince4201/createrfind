@@ -49,18 +49,25 @@ export async function getApp() {
         if (process.env.FRONTEND_URL) {
             allowedOrigins.push(...process.env.FRONTEND_URL.split(','));
         }
-        app.use(cors({
-            origin: (origin, callback) => {
-                if (!origin || allowedOrigins.includes(origin)) {
+        
+        // Safe, array-based CORS - no Error throwing that strips headers
+        const corsOptions = {
+            origin: function (origin, callback) {
+                // Allow all origins that match vercel.app for preview deployments, plus exact matches
+                if (!origin || allowedOrigins.includes(origin) || origin.endsWith('vercel.app')) {
                     callback(null, true);
                 } else {
-                    callback(new Error('Not allowed by CORS'));
+                    // Failing gracefully without throwing an error that breaks Express preflight
+                    callback(null, false);
                 }
             },
             credentials: true,
             methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-            allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-        }));
+            allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+        };
+
+        app.use(cors(corsOptions));
+        app.options('*', cors(corsOptions)); // Force preflight for all routes
 
         app.use(express.json({ limit: '1mb' }));
 
