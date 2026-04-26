@@ -34,10 +34,10 @@
 .orbRing2{position:absolute;width:320px;height:320px;border-radius:50%;border:1px dashed rgba(56,189,248,0.1);transition:transform .2s ease-out}
 .orb{width:280px;height:280px;border-radius:50%;background:radial-gradient(circle at 30% 30%,rgba(200,180,255,0.45),rgba(124,106,255,0.3) 35%,rgba(56,189,248,0.12) 65%,rgba(10,15,30,0.4));box-shadow:0 0 60px rgba(124,106,255,0.3),0 0 120px rgba(124,106,255,0.1),inset 0 -20px 40px rgba(0,0,0,0.3),inset 0 20px 40px rgba(255,255,255,0.05);position:relative;z-index:2;transition:transform .15s ease-out;will-change:transform}
 .orbSheen{position:absolute;top:8%;left:15%;width:45%;height:30%;border-radius:50%;background:linear-gradient(180deg,rgba(255,255,255,0.15),transparent);filter:blur(8px)}
-.orbInner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:110px;height:95px;background:linear-gradient(160deg,rgba(255,255,255,0.18),rgba(255,200,240,0.1));border-radius:18px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,0.3)}
-.playIcon{width:44px;height:44px;background:rgba(255,255,255,0.92);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(0,0,0,0.3);transition:transform .3s}
+.orbInner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:120px;height:85px;background:linear-gradient(135deg,#FF4B4B,#FF0000);border-radius:24px;border:1px solid rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;box-shadow:0 12px 40px rgba(255,0,0,0.4)}
+.playIcon{display:flex;align-items:center;justify-content:center;transition:transform .3s;filter:drop-shadow(0 4px 12px rgba(0,0,0,0.2))}
 .playIcon:hover{transform:scale(1.1)}
-.playIcon svg{margin-left:3px}
+.playIcon svg{margin-left:4px}
 
 /* Floating Avatars */
 .floatingAvatar{position:absolute;width:60px;height:60px;border-radius:50%;border:3px solid;overflow:hidden;z-index:3;box-shadow:0 4px 20px rgba(0,0,0,0.4);transition:transform .12s ease-out;will-change:transform}

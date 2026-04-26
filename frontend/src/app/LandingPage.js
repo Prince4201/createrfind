@@ -218,7 +218,7 @@ export default function LandingPage() {
             <div className={styles.orbSheen} />
             <div className={styles.orbInner}>
               <div className={styles.playIcon}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="#0D1322"><polygon points="5,3 19,12 5,21" /></svg>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="#FFFFFF"><polygon points="5,3 19,12 5,21" /></svg>
               </div>
             </div>
           </div>
