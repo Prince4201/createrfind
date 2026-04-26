@@ -40,7 +40,7 @@ export async function getApp() {
         app.use(helmet({
             crossOriginResourcePolicy: { policy: "cross-origin" }
         }));
-        
+
         const allowedOrigins = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : ['http://localhost:3000', 'http://localhost:3001'];
         app.use(cors({
             origin: (origin, callback) => {
@@ -56,7 +56,7 @@ export async function getApp() {
         }));
 
         app.use(express.json({ limit: '1mb' }));
-        
+
         // Request logging middleware
         app.use((req, res, next) => {
             logger.info(`${req.method} ${req.url}`, {
@@ -75,6 +75,19 @@ export async function getApp() {
         // ------- Health check (no auth) -------
         app.get('/health', (_req, res) => {
             res.json({ status: 'ok', timestamp: new Date().toISOString() });
+        });
+
+
+        app.get('/api', (req, res) => {
+            res.json({
+                status: "OK",
+                message: "CreatorFind API is running 🚀",
+                endpoints: {
+                    auth: "/api/auth",
+                    channels: "/api/channels",
+                    campaigns: "/api/campaigns"
+                }
+            });
         });
 
         // ------- Public routes -------
