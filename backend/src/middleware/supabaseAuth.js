@@ -42,6 +42,7 @@ export default async function authMiddleware(req, res, next) {
         };
 
         console.log(`[AuthSuccess] Authenticated ${user.email} as ${req.user.role}`);
+        console.log(`[Backend Debug] Decoded user_id from token: ${user.id}`);
 
         next();
     } catch (error) {

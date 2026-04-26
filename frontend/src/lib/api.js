@@ -22,6 +22,7 @@ async function getHeaders() {
             console.warn('[API] No active session found. Request may fail auth.');
         } else {
             headers['Authorization'] = `Bearer ${session.access_token}`;
+            console.log(`[Frontend Debug] Attached JWT Token for user: ${session.user?.id}`);
         }
     } catch (error) {
         console.error('[API] Error fetching auth session:', error);

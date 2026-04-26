@@ -41,7 +41,14 @@ export async function getApp() {
             crossOriginResourcePolicy: { policy: "cross-origin" }
         }));
 
-        const allowedOrigins = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : ['http://localhost:3000', 'http://localhost:3001'];
+        const allowedOrigins = [
+            'http://localhost:3000', 
+            'http://localhost:3001', 
+            'https://createrfind.vercel.app'
+        ];
+        if (process.env.FRONTEND_URL) {
+            allowedOrigins.push(...process.env.FRONTEND_URL.split(','));
+        }
         app.use(cors({
             origin: (origin, callback) => {
                 if (!origin || allowedOrigins.includes(origin)) {
@@ -151,7 +158,7 @@ export async function getApp() {
 async function start() {
     try {
         const app = await getApp();
-        const PORT = process.env.PORT || 8080;
+        const PORT = process.env.PORT || 10000;
         app.listen(PORT, () => {
             logger.info(`Server running on port ${PORT}`);
         });
