@@ -74,7 +74,7 @@ const api = {
     getEmailHistory: (params = '') => request(`/api/emails/history?${params}`),
 
     // Analytics
-    getAnalytics: () => request('/api/analytics'),
+    getAnalytics: () => request('/api/dashboard-stats'),
 
     // Sheets
     syncSheets: () => request('/api/sheets/sync', { method: 'POST' }),

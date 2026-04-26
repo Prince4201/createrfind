@@ -702,7 +702,7 @@ app.post('/api/auth/login', firebaseAuth, async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 //  Analytics Routes
 // ═══════════════════════════════════════════════════════════
-app.get('/api/analytics', firebaseAuth, async (req, res) => {
+app.get('/api/dashboard-stats', firebaseAuth, async (req, res) => {
     const store = await getUserStore(req.user.uid);
     res.json({
         data: {

@@ -84,7 +84,7 @@ export async function getApp() {
         app.use('/api/channels', authMiddleware, channelRoutes);
         app.use('/api/campaigns', authMiddleware, campaignRoutes);
         app.use('/api/emails', authMiddleware, emailRoutes);
-        app.use('/api/analytics', authMiddleware, analyticsRoutes);
+        app.use('/api/dashboard-stats', authMiddleware, analyticsRoutes);
         app.use('/api/sheets', authMiddleware, sheetRoutes);
         app.use('/api/settings', authMiddleware, settingsRoutes);
         app.use('/api/admin', adminRoutes); // Has its own auth + admin check
