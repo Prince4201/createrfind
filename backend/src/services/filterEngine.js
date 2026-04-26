@@ -94,13 +94,21 @@ class FilterEngine {
                         const email = this.yt.extractEmail(channel.description);
                         if (!email) return null;
 
+                        // Calculate avg views (was previously hardcoded to 0 to save quota)
+                        let avg_views = 0;
+                        try {
+                            avg_views = await this.yt.calculateAvgViews(channel.channelId);
+                        } catch(err) {
+                            logger.warn(`Could not calculate avg views for ${channel.channelId}: ${err.message}`);
+                        }
+
                         return {
                             channel_id: channel.channelId,
                             name: channel.channelName,
                             channel_url: channel.channelUrl,
                             description: channel.description,
                             subscribers: channel.subscribers,
-                            avg_views: 0, // Optimized: do not calculate avg views initially to save quota
+                            avg_views,
                             category: channel.category,
                             email,
                             niche: keyword,

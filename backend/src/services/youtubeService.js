@@ -154,7 +154,11 @@ class YouTubeService {
 
     /* ---------- Internal: API call with retry + quota handling ---------- */
     async _call(fn, units = 1, userId = null, apiName = 'youtube_v3', retries = 3) {
-        for (let attempt = 1; attempt <= retries; attempt++) {
+        let quotaRetries = 0;
+        // IMPROVED: Only rotate as many times as we have keys to prevent infinite loops (SAFE CHANGE)
+        const maxQuotaRetries = this.apiKeys.length;
+
+        for (let attempt = 1; attempt <= retries + quotaRetries; attempt++) {
             try {
                 const res = await fn();
                 
@@ -171,18 +175,21 @@ class YouTubeService {
 
                 // Quota exceeded — rotate and retry if possible
                 if (status === 403 || status === 429) {
-                    if (this.apiKeys.length > 1) {
-                        logger.warn('YouTube API quota exceeded. Rotating key...', {
+                    if (quotaRetries < maxQuotaRetries - 1) {
+                        logger.warn(`YouTube API quota exceeded. Rotating key... (${quotaRetries + 1}/${maxQuotaRetries})`, {
                             message: error.message,
                         });
                         this._rotateKey();
+                        quotaRetries++;
                         continue; 
                     } else {
-                        logger.error('YouTube API quota exceeded (no more keys to rotate)', {
+                        logger.error('YouTube API quota exceeded on ALL available keys.', {
                             message: error.message,
                         });
                         const quotaError = new Error('YouTube API quota exceeded');
                         quotaError.statusCode = 429;
+                        // ADDED: Flag to easily identify when all keys fail (SAFE CHANGE)
+                        quotaError.isQuotaExceeded = true;
                         throw quotaError;
                     }
                 }
