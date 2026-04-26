@@ -119,4 +119,31 @@ router.delete('/users/:id', async (req, res) => {
     }
 });
 
+/**
+ * PATCH /api/admin/users/:id/role
+ * Updates a user's role
+ */
+router.patch('/users/:id/role', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { role } = req.body;
+
+        if (!['admin', 'user'].includes(role)) {
+            return res.status(400).json({ error: 'Invalid role' });
+        }
+
+        if (id === req.user.id) {
+            return res.status(400).json({ error: 'Cannot change your own role' });
+        }
+
+        const { error } = await supabase.from('users').update({ role }).eq('id', id);
+        if (error) throw error;
+
+        res.json({ message: 'Role updated successfully', role });
+    } catch (error) {
+        console.error('[Admin] Role update failed:', error.message);
+        res.status(500).json({ error: 'Failed to update role' });
+    }
+});
+
 export default router;

@@ -23,22 +23,44 @@ router.post('/verify', async (req, res, next) => {
             return res.status(401).json({ error: 'Invalid token' });
         }
 
-        // Always ensure user exists in public.users (acts as an auto-sync since we don't have SQL triggers)
-        // We use the global service_role supabase client which bypasses RLS
-        const { data: profile, error: upsertError } = await supabase
-            .from('users')
-            .upsert({
-                id: user.id,
-                email: user.email,
-                name: user.user_metadata?.name || user.email,
-                role: 'admin' // Grant admin by default for this single-user demo
-            }, { onConflict: 'id' })
-            .select()
-            .single();
+        // Always ensure user exists in public.users without overwriting roles
+        let { data: profile } = await supabase.from('users').select('*').eq('id', user.id).single();
 
-        if (upsertError) {
-            logger.error('Failed to sync user to public.users', { error: upsertError });
-            return res.status(500).json({ error: `Failed to sync user profile: ${upsertError.message}` });
+        if (!profile) {
+            // New user - default to 'user'
+            const { data: newProfile, error: insertError } = await supabase
+                .from('users')
+                .insert({
+                    id: user.id,
+                    email: user.email,
+                    name: user.user_metadata?.name || user.email,
+                    role: 'user' // Default to user, not admin
+                })
+                .select()
+                .single();
+            
+            if (insertError) {
+                logger.error('Failed to create user in public.users', { error: insertError });
+                return res.status(500).json({ error: `Failed to create user profile: ${insertError.message}` });
+            }
+            profile = newProfile;
+        } else {
+            // Existing user - update details but preserve existing role
+            const { data: updatedProfile, error: updateError } = await supabase
+                .from('users')
+                .update({
+                    email: user.email,
+                    name: user.user_metadata?.name || profile.name
+                })
+                .eq('id', user.id)
+                .select()
+                .single();
+            
+            if (updateError) {
+                logger.error('Failed to update user in public.users', { error: updateError });
+            } else {
+                profile = updatedProfile;
+            }
         }
 
         if (profile?.status === 'blocked') {

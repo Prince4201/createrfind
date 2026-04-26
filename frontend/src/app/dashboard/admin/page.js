@@ -46,6 +46,17 @@ export default function AdminPage() {
         }
     };
 
+    const handleRoleChange = async (id, newRole) => {
+        if (!confirm(`Are you sure you want to change this user's role to ${newRole.toUpperCase()}?`)) return;
+
+        try {
+            await api.updateAdminUserRole(id, newRole);
+            fetchData(); // Refresh list
+        } catch (err) {
+            alert(err.message || 'Failed to update role');
+        }
+    };
+
     if (loading && !stats) {
         return (
             <div className="page-container">
@@ -144,23 +155,42 @@ export default function AdminPage() {
                                     <td style={{ padding: '16px 24px', textAlign: 'center', fontWeight: 600 }}>{user.channelCount}</td>
                                     <td style={{ padding: '16px 24px', textAlign: 'center', fontWeight: 600 }}>{user.campaignCount}</td>
                                     <td style={{ padding: '16px 24px', textAlign: 'right' }}>
-                                        <button 
-                                            onClick={() => handleDeleteUser(user.id, user.email)}
-                                            style={{
-                                                padding: '6px 12px',
-                                                borderRadius: 'var(--radius-sm)',
-                                                background: 'rgba(255,107,107,0.1)',
-                                                color: '#ff6b6b',
-                                                border: '1px solid rgba(255,107,107,0.2)',
-                                                fontSize: '0.75rem',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.2s'
-                                            }}
-                                            onMouseOver={(e) => e.target.style.background = 'rgba(255,107,107,0.2)'}
-                                            onMouseOut={(e) => e.target.style.background = 'rgba(255,107,107,0.1)'}
-                                        >
-                                            Delete
-                                        </button>
+                                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                            <button 
+                                                onClick={() => handleRoleChange(user.id, user.role === 'admin' ? 'user' : 'admin')}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    borderRadius: 'var(--radius-sm)',
+                                                    background: 'rgba(255,255,255,0.05)',
+                                                    color: 'var(--text-primary)',
+                                                    border: '1px solid rgba(255,255,255,0.1)',
+                                                    fontSize: '0.75rem',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s'
+                                                }}
+                                                onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
+                                                onMouseOut={(e) => e.target.style.background = 'rgba(255,255,255,0.05)'}
+                                            >
+                                                Make {user.role === 'admin' ? 'User' : 'Admin'}
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDeleteUser(user.id, user.email)}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    borderRadius: 'var(--radius-sm)',
+                                                    background: 'rgba(255,107,107,0.1)',
+                                                    color: '#ff6b6b',
+                                                    border: '1px solid rgba(255,107,107,0.2)',
+                                                    fontSize: '0.75rem',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s'
+                                                }}
+                                                onMouseOver={(e) => e.target.style.background = 'rgba(255,107,107,0.2)'}
+                                                onMouseOut={(e) => e.target.style.background = 'rgba(255,107,107,0.1)'}
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

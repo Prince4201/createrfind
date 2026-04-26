@@ -106,6 +106,7 @@ const api = {
     // Admin
     getAdminStats: () => request('/api/admin/stats'),
     getAdminUsers: () => request('/api/admin/users'),
+    updateAdminUserRole: (id, role) => request(`/api/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
     deleteAdminUser: (id) => request(`/api/admin/users/${id}`, { method: 'DELETE' }),
 
     // Utilities
