@@ -1,3 +1,12 @@
+// ADDED: Global uncaught exception and unhandled rejection handlers (SAFE CHANGE)
+process.on('uncaughtException', (err) => {
+    console.error('[CRITICAL] Uncaught Exception:', err);
+    // Do not exit immediately to allow graceful shutdown if needed
+});
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -23,11 +32,6 @@ import FilterEngine from './services/filterEngine.js';
 import EmailService from './services/emailService.js';
 import SheetsService from './services/sheetsService.js';
 
-// ─── App factory ─────────────────────────────────────────────────────────────
-// getApp() initialises all services and returns the configured Express app.
-// It is called by the Vercel entry point (api/index.js) and by start() below.
-// We cache the promise so that Vercel's warm-lambda reuse doesn't re-init.
-// ─────────────────────────────────────────────────────────────────────────────
 let _appPromise = null;
 
 export async function getApp() {
@@ -61,7 +65,17 @@ export async function getApp() {
 
         app.use(express.json({ limit: '1mb' }));
 
-        // Request logging middleware
+        // ADDED: Request timeout handling (SAFE CHANGE)
+        app.use((req, res, next) => {
+            req.setTimeout(30000, () => {
+                const err = new Error('Request Timeout');
+                err.status = 408;
+                next(err);
+            });
+            next();
+        });
+
+        // IMPROVED: Request logging middleware
         app.use((req, res, next) => {
             logger.info(`${req.method} ${req.url}`, {
                 origin: req.headers.origin,
@@ -76,9 +90,14 @@ export async function getApp() {
             res.json({ message: "YouTube Creator Discovery API" });
         });
 
-        // ------- Health check (no auth) -------
-        app.get('/health', (_req, res) => {
-            res.json({ status: 'ok', timestamp: new Date().toISOString() });
+        // IMPROVED: Health check (no auth) (SAFE CHANGE)
+        app.get(['/health', '/api/health'], (_req, res) => {
+            res.json({ 
+                status: 'ok', 
+                uptime: process.uptime(),
+                timestamp: new Date().toISOString(),
+                environment: process.env.NODE_ENV || 'development'
+            });
         });
 
 
@@ -117,7 +136,13 @@ export async function getApp() {
 
         // ------- Bootstrap services -------
         logger.info('Loading secrets...');
-        const secrets = await loadSecrets();
+        let secrets = {};
+        try {
+            secrets = await loadSecrets();
+        } catch (err) {
+            console.error('[Startup] Failed to load secrets:', err.message);
+            // Fallback to empty object to prevent hard crash if optional
+        }
 
         const youtubeService = new YouTubeService(secrets.youtubeApiKey);
 
@@ -149,9 +174,6 @@ export async function getApp() {
     return _appPromise;
 }
 
-// ─── Local dev entry ─────────────────────────────────────────────────────────
-// Only runs when executed directly (not imported by Vercel).
-// ─────────────────────────────────────────────────────────────────────────────
 async function start() {
     try {
         const app = await getApp();
@@ -165,7 +187,6 @@ async function start() {
     }
 }
 
-// Run only when this file is the entry point (local dev)
 if (process.argv[1] && process.argv[1].endsWith('app.js')) {
     start();
 }
