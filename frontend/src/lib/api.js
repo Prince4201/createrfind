@@ -15,14 +15,23 @@ async function getHeaders() {
 
     try {
         const supabase = getSupabase();
-        // getSession() reads from local storage (instant), getUser() hits the network
-        const { data: { session } } = await supabase.auth.getSession();
         
-        if (!session?.access_token) {
+        // Try getSession() first (reads from local storage, instant)
+        let token = null;
+        const { data: { session } } = await supabase.auth.getSession();
+        token = session?.access_token;
+
+        // If no token from session, try refreshing
+        if (!token) {
+            console.warn('[API] No session token, attempting refresh...');
+            const { data: { session: refreshed } } = await supabase.auth.refreshSession();
+            token = refreshed?.access_token;
+        }
+        
+        if (!token) {
             console.warn('[API] No active session found. Request may fail auth.');
         } else {
-            headers['Authorization'] = `Bearer ${session.access_token}`;
-            console.log("TOKEN:", session.access_token.substring(0, 20) + "..."); // Truncated for security
+            headers['Authorization'] = `Bearer ${token}`;
         }
     } catch (error) {
         console.error('[API] Error fetching auth session:', error);
