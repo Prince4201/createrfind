@@ -67,6 +67,22 @@ router.post('/send', validateSendEmails, async (req, res, next) => {
                 error: bgError.message,
                 userId: req.user.id,
             });
+            
+            // Log failure to DB so user sees it in history
+            const failLogs = channels.map(ch => ({
+                campaign_id: campaignId,
+                channel_id: ch.channel_id,
+                user_id: req.user.id,
+                to_email: ch.email,
+                subject: campaign.subject,
+                status: 'failed',
+                error_message: bgError.message,
+                sent_at: new Date().toISOString()
+            }));
+            
+            await supabase.from('email_logs').insert(failLogs).catch(err => 
+                console.error('[Fallback DB Error] Failed to log background error:', err)
+            );
         }
     } catch (error) {
         // Only reaches here if the pre-send validation/DB lookups fail
