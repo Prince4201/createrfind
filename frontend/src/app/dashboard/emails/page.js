@@ -61,17 +61,23 @@ export default function EmailsPage() {
             setResult(res.data);
             setSelectedChannels([]);
 
-            // Start polling history every 10s so user sees results as they come in
+            // Start polling history every 5s so user sees results as they come in
             if (pollRef.current) clearInterval(pollRef.current);
-            pollRef.current = setInterval(refreshData, 10000);
-            // Stop polling after 2 minutes
+            pollRef.current = setInterval(refreshData, 5000);
+            
+            // Auto dismiss the banner after 8 seconds so it doesn't look stuck
+            setTimeout(() => {
+                setResult(null);
+            }, 8000);
+
+            // Stop polling after 30 seconds
             setTimeout(() => {
                 if (pollRef.current) clearInterval(pollRef.current);
                 pollRef.current = null;
-            }, 120000);
+            }, 30000);
 
             // Immediate first refresh after a short delay
-            setTimeout(refreshData, 3000);
+            setTimeout(refreshData, 2000);
         } catch (err) {
             console.error('Failed to send emails:', err);
             setResult({ error: err.message });
@@ -265,7 +271,7 @@ export default function EmailsPage() {
                         {result.error
                             ? `Error: ${result.error}`
                             : result.status === 'processing'
-                                ? `📨 ${result.message} History will update automatically.`
+                                ? `📨 ${result.message.replace('History will update automatically.', 'Background processing started... this will close automatically.')}`
                                 : `✅ ${result.sent} sent, ${result.failed} failed`}
                     </div>
                 )}
