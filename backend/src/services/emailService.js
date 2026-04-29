@@ -111,46 +111,39 @@ class EmailService {
                     html: personalizedBody,
                 });
 
-                // Log to email_logs (Simplified to find root cause)
-                const logData = {
-                    campaign_id: campaignId,
-                    channel_id: channel.channel_id,
-                    user_id: userId,
-                    to_email: toEmail,
-                    subject: personalizedSubject,
-                    status: 'sent',
-                    sent_at: new Date().toISOString(),
-                };
-
-                const { error: logError } = await supabase
-                    .from('email_logs')
-                    .insert(logData);
-
-                if (logError) {
-                    console.error('[CRITICAL_DEBUG] Failed to log successful email:', {
-                        error: logError.message,
-                        code: logError.code,
-                        dataAttempted: logData
-                    });
-                }
-
-                // Update campaign counters
-                await supabase
-                    .from('campaigns')
-                    .update({ total_sent: (campaign.total_sent || 0) + sent + 1 })
-                    .eq('id', campaignId);
-
                 sent++;
                 logger.info(`Email sent to ${toEmail}`, { channelId: channel.channel_id });
 
-                // Update channel email_sent status in DB
-                await supabase
-                    .from('channels')
-                    .update({ email_sent: true })
-                    .eq('channel_id', channel.channel_id);
+                // Run all DB updates in parallel (no need to await sequentially)
+                const dbOps = [
+                    supabase.from('email_logs').insert({
+                        campaign_id: campaignId,
+                        channel_id: channel.channel_id,
+                        user_id: userId,
+                        to_email: toEmail,
+                        subject: personalizedSubject,
+                        status: 'sent',
+                        sent_at: new Date().toISOString(),
+                    }),
+                    supabase.from('campaigns')
+                        .update({ total_sent: (campaign.total_sent || 0) + sent })
+                        .eq('id', campaignId),
+                    supabase.from('channels')
+                        .update({ email_sent: true })
+                        .eq('channel_id', channel.channel_id),
+                ];
+                
+                const results = await Promise.allSettled(dbOps);
+                results.forEach((r, i) => {
+                    if (r.status === 'rejected' || r.value?.error) {
+                        console.error(`[DB] Op ${i} failed:`, r.reason || r.value?.error?.message);
+                    }
+                });
 
-                // Add 7 second delay between emails to prevent blocking
-                await new Promise((resolve) => setTimeout(resolve, 7000));
+                // 1.5s delay between emails to avoid SMTP rate limits
+                if (channels.indexOf(channel) < channels.length - 1) {
+                    await new Promise((resolve) => setTimeout(resolve, 1500));
+                }
             } catch (error) {
                 failed++;
                 logger.error(`Failed to send email to ${channel.email}`, {
