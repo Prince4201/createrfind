@@ -64,12 +64,12 @@
 
 .navItem:hover {
     color: var(--text-secondary);
-    background: rgba(124, 106, 255, 0.04);
+    background: rgba(255, 140, 66, 0.04);
 }
 
 .navItem.active {
     color: var(--text-primary);
-    background: rgba(124, 106, 255, 0.08);
+    background: rgba(255, 140, 66, 0.08);
     font-weight: 600;
 }
 

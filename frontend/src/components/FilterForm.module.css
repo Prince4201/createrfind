@@ -36,7 +36,7 @@
     height: 4px;
     appearance: none;
     -webkit-appearance: none;
-    background: rgba(124, 106, 255, 0.1);
+    background: rgba(255, 140, 66, 0.1);
     border-radius: var(--radius-full);
     outline: none;
     margin-top: 6px;
@@ -55,7 +55,7 @@
 }
 
 .slider::-webkit-slider-thumb:hover {
-    box-shadow: 0 0 14px rgba(124, 106, 255, 0.4);
+    box-shadow: 0 0 14px rgba(255, 140, 66, 0.4);
 }
 
 .slider::-moz-range-thumb {

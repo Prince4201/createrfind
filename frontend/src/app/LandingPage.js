@@ -83,7 +83,7 @@ export default function LandingPage() {
         this.speedX = (Math.random() - 0.5) * 2;
         this.speedY = (Math.random() - 0.5) * 2;
         this.life = 1;
-        const colors = ['124,106,255', '224,64,251', '56,189,248', '52,211,153'];
+        const colors = ['255,140,66', '255,60,56', '255,184,108', '52,211,153'];
         this.color = colors[Math.floor(Math.random() * colors.length)];
       }
       update() { this.x += this.speedX; this.y += this.speedY; this.life -= 0.012; this.size *= 0.995; }
@@ -118,8 +118,8 @@ export default function LandingPage() {
 
       // Cursor glow — larger, more prominent
       const grd = ctx.createRadialGradient(cursorPos.x, cursorPos.y, 0, cursorPos.x, cursorPos.y, 280);
-      grd.addColorStop(0, 'rgba(124,106,255,0.12)');
-      grd.addColorStop(0.4, 'rgba(224,64,251,0.04)');
+      grd.addColorStop(0, 'rgba(255,140,66,0.12)');
+      grd.addColorStop(0.4, 'rgba(255,60,56,0.04)');
       grd.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = grd;
       ctx.beginPath();
@@ -267,10 +267,10 @@ export default function LandingPage() {
         </p>
         <div className={styles.featGrid}>
           {[
-            { icon: '🔍', title: 'Smart Discovery', desc: 'Search YouTube by niche, subscribers and average views. Each run collects up to 50 verified channels — fully automated.', color: 'rgba(124,106,255,0.15)' },
+            { icon: '🔍', title: 'Smart Discovery', desc: 'Search YouTube by niche, subscribers and average views. Each run collects up to 50 verified channels — fully automated.', color: 'rgba(255,140,66,0.15)' },
             { icon: '📋', title: 'Channel Database', desc: 'Browse, filter and tag every creator you\'ve found, with rich metadata.', color: 'rgba(52,211,153,0.15)' },
             { icon: '✉️', title: 'Personalised Outreach', desc: 'Templates with variables like {{channelName}}. Sent from your own SMTP.', color: 'rgba(91,154,255,0.15)' },
-            { icon: '🚀', title: 'Campaigns at Scale', desc: 'Group sends, track progress and iterate — all from one clean dashboard.', color: 'rgba(224,64,251,0.15)' },
+            { icon: '🚀', title: 'Campaigns at Scale', desc: 'Group sends, track progress and iterate — all from one clean dashboard.', color: 'rgba(255,60,56,0.15)' },
             { icon: '📊', title: 'One-click Sheet Sync', desc: 'Push every discovered channel to Google Sheets with full details intact.', color: 'rgba(255,184,108,0.15)' },
           ].map((f, i) => (
             <div key={i} className={`${styles.featCard} ${styles.reveal} ${styles[`revD${(i % 4) + 1}`]}`}>
@@ -304,7 +304,7 @@ export default function LandingPage() {
           <div className={styles.previewContent}>
             <div className={styles.previewSidebar}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, padding: '0 14px' }}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,#7C6AFF,#38BDF8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', color: 'white' }}>▶</div>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,#FF8C42,#FFB86C)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', color: 'white' }}>▶</div>
                 <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>CreatorFind</span>
               </div>
               {['Overview', 'Discover', 'Channels', 'Campaigns', 'Email History', 'Sheet Sync', 'Email Settings'].map((item, i) => (
@@ -318,7 +318,7 @@ export default function LandingPage() {
                 {[
                   { icon: '📁', label: 'TOTAL CHANNELS', num: '14', bg: 'rgba(91,154,255,0.12)' },
                   { icon: '✉️', label: 'EMAILS SENT', num: '4', bg: 'rgba(52,211,153,0.12)' },
-                  { icon: '🚀', label: 'CAMPAIGNS', num: '10', bg: 'rgba(224,64,251,0.12)' },
+                  { icon: '🚀', label: 'CAMPAIGNS', num: '10', bg: 'rgba(255,60,56,0.12)' },
                   { icon: '🔍', label: 'DISCOVERY RUNS', num: '10', bg: 'rgba(255,184,108,0.12)' },
                 ].map((s, i) => (
                   <div key={i} className={styles.previewStatCard}>
@@ -333,16 +333,16 @@ export default function LandingPage() {
                   <div className={styles.previewChartTitle}>Discovery Activity</div>
                   <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 60 }}>
                     {[30, 30, 30, 30, 55, 75].map((h, i) => (
-                      <div key={i} style={{ width: 24, height: `${h}%`, borderRadius: 4, background: i >= 4 ? 'linear-gradient(180deg,#7C6AFF,#38BDF8)' : 'rgba(124,106,255,0.25)' }} />
+                      <div key={i} style={{ width: 24, height: `${h}%`, borderRadius: 4, background: i >= 4 ? 'linear-gradient(180deg,#FF8C42,#FFB86C)' : 'rgba(255,140,66,0.25)' }} />
                     ))}
                   </div>
                 </div>
                 <div className={styles.previewChartCard}>
                   <div className={styles.previewChartTitle}>Emails Sent Over Time</div>
                   <svg viewBox="0 0 200 60" style={{ width: '100%', height: 60 }}>
-                    <polyline fill="none" stroke="#38BDF8" strokeWidth="2" points="0,50 30,48 60,45 90,42 120,38 150,30 180,25 200,20" />
+                    <polyline fill="none" stroke="#FFB86C" strokeWidth="2" points="0,50 30,48 60,45 90,42 120,38 150,30 180,25 200,20" />
                     {[0, 30, 60, 90, 120, 150, 180, 200].map((x, i) => (
-                      <circle key={i} cx={x} cy={[50, 48, 45, 42, 38, 30, 25, 20][i]} r="3" fill="#38BDF8" />
+                      <circle key={i} cx={x} cy={[50, 48, 45, 42, 38, 30, 25, 20][i]} r="3" fill="#FFB86C" />
                     ))}
                   </svg>
                 </div>

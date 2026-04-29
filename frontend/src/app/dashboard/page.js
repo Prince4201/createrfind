@@ -65,7 +65,7 @@ export default function DashboardPage() {
                     xKey="date"
                     yKey="count"
                     title="Discovery Activity"
-                    color="#7C6AFF"
+                    color="#FF8C42"
                 />
                 <LineChartWidget
                     data={emailData}
@@ -89,7 +89,7 @@ export default function DashboardPage() {
                                 <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', paddingBottom: '16px', borderBottom: idx !== 3 ? '1px solid var(--border-subtle)' : 'none' }}>
                                     <div style={{ 
                                         width: '32px', height: '32px', borderRadius: '50%', 
-                                        background: activity.action === 'discovery' ? 'rgba(56, 189, 248, 0.1)' : 'rgba(124, 106, 255, 0.1)',
+                                        background: activity.action === 'discovery' ? 'rgba(56, 189, 248, 0.1)' : 'rgba(255, 140, 66, 0.1)',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 
                                     }}>
                                         {activity.action === 'discovery' ? <Search size={14} color="var(--accent-cyan)" /> : <Mail size={14} color="var(--brand)" />}

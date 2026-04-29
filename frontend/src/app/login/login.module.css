@@ -33,7 +33,7 @@
 .backBtn:hover {
   color: var(--text-primary);
   border-color: var(--brand);
-  box-shadow: 0 0 20px rgba(124, 106, 255, 0.15);
+  box-shadow: 0 0 20px rgba(255, 140, 66, 0.15);
   transform: translateX(-4px);
 }
 
@@ -60,7 +60,7 @@
 .bgOrb2 {
   width: 400px;
   height: 400px;
-  background: #38BDF8;
+  background: #FFB86C;
   bottom: -120px;
   left: -100px;
   animation: float 10s ease-in-out infinite;
@@ -172,7 +172,7 @@
 
 .pwdToggle:hover {
   color: var(--brand-light);
-  background: rgba(124, 106, 255, 0.08);
+  background: rgba(255, 140, 66, 0.08);
 }
 
 .submitBtn {
