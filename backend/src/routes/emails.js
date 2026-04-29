@@ -8,7 +8,8 @@ const router = Router();
 /**
  * POST /api/emails/send
  * Send personalized emails to selected channels for a campaign.
- * Delegates to the email service which reads SMTP config from Supabase.
+ * Returns immediately and processes emails in the background to avoid
+ * Render's 30-second request timeout on free tier.
  */
 router.post('/send', validateSendEmails, async (req, res, next) => {
     try {
@@ -42,20 +43,33 @@ router.post('/send', validateSendEmails, async (req, res, next) => {
             return res.status(400).json({ error: 'No valid channels with emails found' });
         }
 
-        // Send emails
-        const emailService = req.app.get('emailService');
-        const result = await emailService.sendBulk(
-            { ...campaign, userId: req.user.id },
-            channels
-        );
-
-        logger.info('Emails sent', { campaignId, ...result, userId: req.user.id });
-
+        // ---- Respond immediately ----
         res.json({
             success: true,
-            data: result,
+            data: {
+                status: 'processing',
+                message: `Sending emails to ${channels.length} channel(s). Check history for results.`,
+                total: channels.length,
+            },
         });
+
+        // ---- Process emails in the background (after response is sent) ----
+        const emailService = req.app.get('emailService');
+        try {
+            const result = await emailService.sendBulk(
+                { ...campaign, userId: req.user.id },
+                channels
+            );
+            logger.info('Background email send completed', { campaignId, ...result, userId: req.user.id });
+        } catch (bgError) {
+            logger.error('Background email send failed', {
+                campaignId,
+                error: bgError.message,
+                userId: req.user.id,
+            });
+        }
     } catch (error) {
+        // Only reaches here if the pre-send validation/DB lookups fail
         next(error);
     }
 });

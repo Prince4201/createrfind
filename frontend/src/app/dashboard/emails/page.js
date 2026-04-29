@@ -1,6 +1,6 @@
 'use client';
 export const dynamic = 'force-dynamic';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import api from '@/lib/api';
 
 export default function EmailsPage() {
@@ -14,6 +14,27 @@ export default function EmailsPage() {
     const [selectedChannels, setSelectedChannels] = useState([]);
     const [sending, setSending] = useState(false);
     const [result, setResult] = useState(null);
+    const pollRef = useRef(null);
+
+    const refreshData = useCallback(async () => {
+        try {
+            const [h, ch] = await Promise.all([
+                api.getEmailHistory(),
+                api.getChannels('limit=100&emailSent=false').catch(() => ({ data: [] })),
+            ]);
+            setHistory(h.data);
+            setChannels(ch.data);
+        } catch (err) {
+            console.error('Failed to refresh data:', err);
+        }
+    }, []);
+
+    // Cleanup polling on unmount
+    useEffect(() => {
+        return () => {
+            if (pollRef.current) clearInterval(pollRef.current);
+        };
+    }, []);
 
     useEffect(() => {
         Promise.all([
@@ -39,13 +60,18 @@ export default function EmailsPage() {
             });
             setResult(res.data);
             setSelectedChannels([]);
-            // Refresh history and channels
-            const [h, ch] = await Promise.all([
-                api.getEmailHistory(),
-                api.getChannels('limit=100&emailSent=false').catch(() => ({ data: [] })),
-            ]);
-            setHistory(h.data);
-            setChannels(ch.data);
+
+            // Start polling history every 10s so user sees results as they come in
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = setInterval(refreshData, 10000);
+            // Stop polling after 2 minutes
+            setTimeout(() => {
+                if (pollRef.current) clearInterval(pollRef.current);
+                pollRef.current = null;
+            }, 120000);
+
+            // Immediate first refresh after a short delay
+            setTimeout(refreshData, 3000);
         } catch (err) {
             console.error('Failed to send emails:', err);
             setResult({ error: err.message });
@@ -219,14 +245,28 @@ export default function EmailsPage() {
                 {result && (
                     <div style={{
                         marginTop: 16, padding: '10px 14px', borderRadius: 'var(--radius-md)',
-                        background: result.error ? 'rgba(255,107,107,0.08)' : 'rgba(46,229,157,0.08)',
-                        border: `1px solid ${result.error ? 'rgba(255,107,107,0.15)' : 'rgba(46,229,157,0.15)'}`,
-                        color: result.error ? '#ff6b6b' : 'var(--accent-green)',
+                        background: result.error
+                            ? 'rgba(255,107,107,0.08)'
+                            : result.status === 'processing'
+                                ? 'rgba(99,102,241,0.08)'
+                                : 'rgba(46,229,157,0.08)',
+                        border: `1px solid ${result.error
+                            ? 'rgba(255,107,107,0.15)'
+                            : result.status === 'processing'
+                                ? 'rgba(99,102,241,0.2)'
+                                : 'rgba(46,229,157,0.15)'}`,
+                        color: result.error
+                            ? '#ff6b6b'
+                            : result.status === 'processing'
+                                ? 'var(--brand)'
+                                : 'var(--accent-green)',
                         fontSize: '0.85rem',
                     }}>
                         {result.error
                             ? `Error: ${result.error}`
-                            : `✅ ${result.sent} sent, ${result.failed} failed`}
+                            : result.status === 'processing'
+                                ? `📨 ${result.message} History will update automatically.`
+                                : `✅ ${result.sent} sent, ${result.failed} failed`}
                     </div>
                 )}
             </div>

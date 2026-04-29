@@ -45,7 +45,7 @@ export async function getApp() {
             crossOriginResourcePolicy: { policy: "cross-origin" }
         }));
 
-        app.use(cors({
+        const corsOptions = {
             origin: function (origin, callback) {
                 const allowed = [
                     "http://localhost:3000",
@@ -59,9 +59,10 @@ export async function getApp() {
                 }
             },
             credentials: true
-        }));
+        };
 
-        app.options("*", cors());
+        app.use(cors(corsOptions));
+        app.options("*", cors(corsOptions));
 
         app.use(express.json({ limit: '1mb' }));
 
