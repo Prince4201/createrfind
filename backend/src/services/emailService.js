@@ -63,6 +63,11 @@ class EmailService {
                 user: settings.smtpUser,
                 pass: settings.smtpPassword,
             },
+            // Force IPv4 because Render throws ENETUNREACH on IPv6 addresses
+            connectionTimeout: 15000,
+            greetingTimeout: 15000,
+            socketTimeout: 15000,
+            family: 4 // Force IPv4 resolution
         });
     }
 
